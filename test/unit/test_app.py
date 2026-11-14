@@ -1,4 +1,4 @@
-from devliz.application import app
+from snappy.application import app
 
 def test_network_folder_validator():
     validator = app.NetworkFolderValidator()
@@ -11,8 +11,8 @@ def test_network_folder_validator():
     assert validator.correct(None) == ""
 
 def test_sync_snap_settings_immediate(qtbot):
-    from devliz.application.app import AppSettings, snap_settings
-    from devliz.controller.setting import SettingController
+    from snappy.application.app import AppSettings, snap_settings
+    from snappy.controller.setting import SettingController
     import qfluentwidgets
     
     # Initialize the controller so it attaches the signals

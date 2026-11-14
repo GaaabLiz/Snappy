@@ -89,7 +89,7 @@ def _import_dashboard_model_module(monkeypatch):
             super().__init__("snapshots")
             self.catalogue = catalogue
 
-    class FakeDevlizData:
+    class FakeSnappyData:
         def __init__(self, snapshots=None, monitored_software=None):
             self.snapshots = snapshots
             self.monitored_software = monitored_software
@@ -116,21 +116,21 @@ def _import_dashboard_model_module(monkeypatch):
     fake_snap_module = types.ModuleType("pylizlib.core.os.snap")
     fake_snap_module.SnapshotCatalogue = FakeSnapshotCatalogue
 
-    fake_data_module = types.ModuleType("devliz.domain.data")
-    fake_data_module.DevlizData = FakeDevlizData
+    fake_data_module = types.ModuleType("snappy.domain.data")
+    fake_data_module.SnappyData = FakeSnappyData
 
-    fake_update_module = types.ModuleType("devliz.model.devliz_update")
+    fake_update_module = types.ModuleType("snappy.model.snappy_update")
     fake_update_module.TaskGetMonitoredSoftware = FakeTaskGetMonitoredSoftware
     fake_update_module.TaskGetSnapshots = FakeTaskGetSnapshots
 
-    fake_view_module = types.ModuleType("devliz.view.dashboard")
+    fake_view_module = types.ModuleType("snappy.view.dashboard")
 
     class FakeDashboardView:
         pass
 
     fake_view_module.DashboardView = FakeDashboardView
 
-    fake_app_module = types.ModuleType("devliz.application.app")
+    fake_app_module = types.ModuleType("snappy.application.app")
 
     class FakeAppSettings:
         @staticmethod
@@ -145,7 +145,7 @@ def _import_dashboard_model_module(monkeypatch):
     fake_app_module.PATH_BACKUPS = "/tmp/backups"
     fake_app_module.snap_settings = "snap-settings"
 
-    fake_i18n_module = types.ModuleType("devliz.application.i18n")
+    fake_i18n_module = types.ModuleType("snappy.application.i18n")
     fake_i18n_module.tr = lambda key, **kwargs: key.format(**kwargs) if kwargs else key
 
     fake_ui_mode_module = types.ModuleType("pylizlib.qt.domain.view")
@@ -163,16 +163,16 @@ def _import_dashboard_model_module(monkeypatch):
     monkeypatch.setitem(sys.modules, "pylizlib.qt.handler.operation_core", fake_operation_core_module)
     monkeypatch.setitem(sys.modules, "pylizlib.qt.handler.operation_domain", fake_operation_domain_module)
     monkeypatch.setitem(sys.modules, "pylizlib.core.os.snap", fake_snap_module)
-    monkeypatch.setitem(sys.modules, "devliz.domain.data", fake_data_module)
-    monkeypatch.setitem(sys.modules, "devliz.model.devliz_update", fake_update_module)
-    monkeypatch.setitem(sys.modules, "devliz.view.dashboard", fake_view_module)
-    monkeypatch.setitem(sys.modules, "devliz.application.app", fake_app_module)
-    monkeypatch.setitem(sys.modules, "devliz.application.i18n", fake_i18n_module)
+    monkeypatch.setitem(sys.modules, "snappy.domain.data", fake_data_module)
+    monkeypatch.setitem(sys.modules, "snappy.model.snappy_update", fake_update_module)
+    monkeypatch.setitem(sys.modules, "snappy.view.dashboard", fake_view_module)
+    monkeypatch.setitem(sys.modules, "snappy.application.app", fake_app_module)
+    monkeypatch.setitem(sys.modules, "snappy.application.i18n", fake_i18n_module)
     monkeypatch.setitem(sys.modules, "pylizlib.qt.domain.view", fake_ui_mode_module)
     monkeypatch.setitem(sys.modules, "loguru", fake_logger_module)
 
-    sys.modules.pop("devliz.model.dashboard", None)
-    import devliz.model.dashboard as dashboard_model_module
+    sys.modules.pop("snappy.model.dashboard", None)
+    import snappy.model.dashboard as dashboard_model_module
 
     return dashboard_model_module, logs
 

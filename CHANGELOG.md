@@ -14,7 +14,7 @@
 ### 🐛 Bug Fixes
 
 - *(modules)* Correct module file name casing in project configuration
-- *(modules)* Rename Devliz.iml to devliz.iml for consistency
+- *(modules)* Rename Snappy.iml to snappy.iml for consistency
 - *(build)* Add pyinstaller dependency and macos icns icon
 
 ### 💼 Other
@@ -30,7 +30,7 @@
 
 - Implement HomeController and HomeView for displaying home statistics
 - Translate UI strings to English using the i18n module for better localization support across the application. Updated various labels, messages, and dialog texts in the catalogue, dashboard, settings, and searcher views to enhance user experience for English-speaking users.
-- Refactor CatalogueController to accept a search page opener and update CatalogueSearcherView to inherit from DevlizQFrame for improved UI integration
+- Refactor CatalogueController to accept a search page opener and update CatalogueSearcherView to inherit from SnappyQFrame for improved UI integration
 - Update DashboardController to manage UI states during data updates for home, catalogue, and searcher views
 - Add HelpController and HelpView for user assistance and guidance in the application
 - Implement ActionHistoryController and ActionHistoryView for managing and displaying user action history
@@ -115,7 +115,7 @@
 - Add sorting functionality for snapshots
 - Add sorting functionality to snapshot catalogue
 - Add search actions for internal content in the command bar
-- Implement UI builder for DevlizQFrame and refactor label installation
+- Implement UI builder for SnappyQFrame and refactor label installation
 - Add catalogue search functionality with UI integration
 - Add context menu for results table with delete action
 - Add delete functionality for snapshots in catalogue searcher
@@ -158,7 +158,7 @@
 ### 🚜 Refactor
 
 - Update path variable names for consistency
-- Rename DevlizSettings to AppSettings for consistency
+- Rename SnappySettings to AppSettings for consistency
 - Update log messages and titles for application consistency
 - Streamline logging setup for improved readability
 - Rename dash_controller.py and dash_model.py to dashboard.py and update imports
@@ -186,20 +186,20 @@
 ### 🚀 Features
 
 - Added resources file
-- Implement Devliz application settings and configuration
-- Add DevlizSnapshotData and DevlizData classes for configuration management
+- Implement Snappy application settings and configuration
+- Add SnappySnapshotData and SnappyData classes for configuration management
 - Add resource file in .py
 - Add WidgetDemo class for displaying labeled widgets
 - Create project.py for project metadata and dependencies
 - Add makefile for project build and management
 - Update dependencies in pyproject.toml for enhanced functionality
 - Add main application entry point with dashboard controller
-- Implement dashboard controller, model, and view for DevLiz application
+- Implement dashboard controller, model, and view for Snappy application
 - Remove commented-out custom scripts configuration from app.py
 - Add splash screen implementation and update main application entry point
 - Update dashboard view to use settings widget and change window title
 - Add new modules for dialog and tab details functionality
-- Add DevlizQFrame class for enhanced UI frame functionality
+- Add SnappyQFrame class for enhanced UI frame functionality
 - Implement WidgetSettingsScrollable class for managing settings UI
 - Implement WidgetSettingsScrollable class for managing settings UI
 - Add CommitMessageInspectionProfile for enforcing commit message standards
@@ -217,8 +217,8 @@
 - Refactor CatalogueController to use a callable for cached data retrieval
 - Update TaskGetSnapshots to utilize SnapshotCatalogue for data retrieval
 - Enhance catalogue components with custom data handling and integration
-- Add custom snapshot data retrieval to devliz_update
-- Add custom snapshot data retrieval to devliz_update
+- Add custom snapshot data retrieval to snappy_update
+- Add custom snapshot data retrieval to snappy_update
 - Refactor dash_controller to streamline data update handling
 - Enhance filtering logic in catalogue to include custom data values
 - Implement snapshot management actions in catalogue controller
@@ -237,7 +237,7 @@
 - Implement settings controller for managing catalogue path and backups
 - Update psutil to version 7.1.1 and pylizlib to version 0.3.49
 - Enhance logging in dashboard controller and model, remove unused settings task
-- Simplify size calculation by using get_normalized_gb_mb_str and clean up unused DevlizSettingsData class
+- Simplify size calculation by using get_normalized_gb_mb_str and clean up unused SnappySettingsData class
 - Refactor catalogue import tabs to use app settings and remove unused settings data class
 - Add snapshot settings configuration for backup management
 - Implement backup directory management and enhance settings functionality
@@ -292,19 +292,19 @@
 - Clean up imports in dash_model.py for improved readability
 - Rename catalogue_dialog.py to catalogue_controller.py and integrate CatalogueController into the dashboard
 - Remove redundant log message after data update in dash_controller.py
-- Rename DevlizData to DevlizSettingsData and restructure data classes for better organization
+- Rename SnappyData to SnappySettingsData and restructure data classes for better organization
 - Enhance DashboardModel and introduce TaskGetMonitoredSoftware for improved data handling. started update logic
 - Simplify TaskGetMonitoredSoftware initialization and remove unused progress calculation
 - Streamline DashboardModel initialization and enhance operation handling
 - Clean up whitespace in dash_view.py for improved readability
-- Remove unused imports in dash_controller.py, dash_model.py, devliz_update.py, and splash.py for cleaner code
+- Remove unused imports in dash_controller.py, dash_model.py, snappy_update.py, and splash.py for cleaner code
 - Update resource path in makefile for correct resource file location
 - Update resource import in dash_view.py and modify resource data in resources_rc.py
 - Update pylizlib version to 0.3.36 and adjust associated URLs in uv.lock
 - Consolidate OperationRunner initialization in dash_model.py for improved clarity
 - Integrate logging functionality in app.py for enhanced debugging and monitoring
 - Change logging level to debug for dashboard update events in dash_model.py
-- Enhance DevlizQFrame with updating widget and progress bar for better user feedback
+- Enhance SnappyQFrame with updating widget and progress bar for better user feedback
 - Enhance settings management with new snapshot and favorites groups
 - Add null check for signal before connecting widget click event
 - Update dashboard state management during operation events
@@ -313,7 +313,7 @@
 - Integrate SnapshotCatalogueWidget into dashboard interface
 - Update dashboard state management on runner completion
 - Simplify label creation in frame.py by moving it to get_label_title method
-- Rename configurations to snapshots in DevlizSnapshotData for clarity
+- Rename configurations to snapshots in SnappySnapshotData for clarity
 - Update update_widget method to use snapshot_data for clarity
 
 ### 📚 Documentation

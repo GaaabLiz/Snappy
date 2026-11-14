@@ -1,4 +1,4 @@
-from devliz.view.catalogue import SnapshotCatalogueWidget
+from snappy.view.catalogue import SnapshotCatalogueWidget
 from pylizlib.core.os.snap import SnapshotSortKey
 
 def test_catalogue_view(qtbot):

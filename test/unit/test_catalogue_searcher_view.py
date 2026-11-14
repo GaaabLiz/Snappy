@@ -1,4 +1,4 @@
-from devliz.view.catalogue_searcher import CatalogueSearcherView
+from snappy.view.catalogue_searcher import CatalogueSearcherView
 
 def test_catalogue_searcher_view(qtbot):
     view = CatalogueSearcherView()

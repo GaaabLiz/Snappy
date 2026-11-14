@@ -29,8 +29,8 @@ def _import_domain_data_module(monkeypatch):
     monkeypatch.setitem(sys.modules, "pylizlib.core.os.snap", snap_module)
     monkeypatch.setitem(sys.modules, "pylizlib.qtfw.domain.sw", sw_module)
 
-    sys.modules.pop("devliz.domain.data", None)
-    import devliz.domain.data as data_module
+    sys.modules.pop("snappy.domain.data", None)
+    import snappy.domain.data as data_module
 
     return data_module
 
@@ -45,20 +45,20 @@ def _make_snapshot(path: Path, mb_size=10.0, date_created=None):
 
 def test_snapshot_count(monkeypatch, tmp_path):
     data_module = _import_domain_data_module(monkeypatch)
-    snap_data = data_module.DevlizSnapshotData(snapshot_list=[_make_snapshot(tmp_path), _make_snapshot(tmp_path)])
+    snap_data = data_module.SnappySnapshotData(snapshot_list=[_make_snapshot(tmp_path), _make_snapshot(tmp_path)])
     assert snap_data.count == 2
 
 
 def test_get_mb_size(monkeypatch, tmp_path):
     data_module = _import_domain_data_module(monkeypatch)
-    snap_data = data_module.DevlizSnapshotData(snapshot_list=[_make_snapshot(tmp_path, mb_size=1.0)])
+    snap_data = data_module.SnappySnapshotData(snapshot_list=[_make_snapshot(tmp_path, mb_size=1.0)])
     # 1.0 MB = 1 * 1024 * 1024 bytes
     assert snap_data.get_mb_size == f"{1024 * 1024}B"
 
 
 def test_compute_home_statistics(monkeypatch, tmp_path):
     data_module = _import_domain_data_module(monkeypatch)
-    snap_data = data_module.DevlizSnapshotData(snapshot_list=[
+    snap_data = data_module.SnappySnapshotData(snapshot_list=[
         _make_snapshot(tmp_path, mb_size=2.0, date_created=datetime(2023, 1, 5)),
         _make_snapshot(tmp_path, mb_size=4.0, date_created=datetime(2023, 1, 1))
     ])
@@ -78,7 +78,7 @@ def test_compute_home_statistics(monkeypatch, tmp_path):
 
 def test_compute_home_statistics_no_dates(monkeypatch, tmp_path):
     data_module = _import_domain_data_module(monkeypatch)
-    snap_data = data_module.DevlizSnapshotData(snapshot_list=[
+    snap_data = data_module.SnappySnapshotData(snapshot_list=[
         _make_snapshot(tmp_path, mb_size=0.0, date_created=None)
     ])
     stats = snap_data.compute_home_statistics()

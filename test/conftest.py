@@ -10,14 +10,14 @@ temp_home = None
 
 def pytest_configure(config):
     global temp_home
-    temp_home = tempfile.mkdtemp(prefix="devliz_test_home_")
+    temp_home = tempfile.mkdtemp(prefix="snappy_test_home_")
     os.environ["HOME"] = temp_home
     os.environ["USERPROFILE"] = temp_home
     os.environ["APPDATA"] = temp_home
     os.environ["LOCALAPPDATA"] = temp_home
     print(f"\n[Pytest] Set fake HOME to: {temp_home}")
     
-    from devliz.model.history import init_action_history_db
+    from snappy.model.history import init_action_history_db
     init_action_history_db()
 
 def pytest_unconfigure(config):

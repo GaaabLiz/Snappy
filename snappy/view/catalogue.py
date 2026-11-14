@@ -1,0 +1,375 @@
+from pathlib import Path
+
+from PySide6.QtCore import Signal, Qt, QMargins, QModelIndex
+from PySide6.QtGui import QActionGroup
+from PySide6.QtWidgets import QHBoxLayout, QWidget, QHeaderView
+from pylizlib.core.os.snap import Snapshot, SnapshotSortKey
+from qfluentwidgets import SearchLineEdit, Action, FluentIcon, CommandBar, setFont, BodyLabel, RoundMenu, \
+    TransparentDropDownPushButton, CheckableMenu, MenuIndicatorType, TableView
+
+from snappy.application.app import app_settings, AppSettings
+from snappy.model.catalogue import CatalogueModel
+from snappy.view.util.frame import SnappyQFrame
+from snappy.application.i18n import tr
+
+
+class SnapshotCatalogueUiBuilder:
+    """
+    Builder utility for creating UI components used within the catalogue view.
+    """
+
+    def __init__(self, parent):
+        """
+        Initialize the UI builder.
+
+        :param parent: Parent widget to attach UI components to.
+        """
+        self.parent = parent
+
+
+class SnapshotCatalogueWidget(SnappyQFrame):
+    """
+    Main widget for displaying and interacting with the snapshot catalogue.
+    Features a table view with searching, sorting, and context actions for snapshots.
+    """
+    signal_import_requested = Signal()
+    signal_open_catalogue_folder_requested = Signal()
+    signal_sort_requested = Signal(object, bool)
+    signal_edit_requested = Signal(Snapshot)
+    signal_install_requested = Signal(Snapshot)
+    signal_delete_requested = Signal(Snapshot)
+    signal_delete_installed_folders_requested = Signal(Snapshot)
+    signal_open_folder_requested = Signal(Snapshot)
+    signal_open_assoc_folder_requested = Signal(Path)
+    signal_duplicate_requested = Signal(Snapshot)
+    signal_search_internal_content_all = Signal()
+    signal_search_internal_content_single = Signal(Snapshot)
+    signal_export_request_snapshot = Signal(Snapshot)
+    signal_export_request_assoc_folders = Signal(Snapshot)
+    signal_update_with_local_dirs_requested = Signal(Snapshot)
+
+    def __init__(self, model: CatalogueModel, parent=None):
+        """
+        Initialize the catalogue widget.
+
+        :param model: The data model providing snapshot items.
+        :param parent: Optional parent widget.
+        """
+        super().__init__(
+            name=tr("Catalogue"), 
+            parent=parent, 
+            subtitle=tr("Manage all your snapshot configurations, import new ones, or install them.")
+        )
+
+        # The model acts as the single source of truth for the table data
+        self.model = model
+        self._current_sort_key = SnapshotSortKey.NAME
+        self._current_sort_reverse = False
+
+        # Add UI widgets
+        self.__setup_label()
+        self.__setup_action_bar()
+        self.__setup_table()
+        self.__setup_footer()
+
+    def __setup_label(self):
+        """
+        Setup the main title label of the catalogue view.
+        """
+        self.install_label_title()
+
+    def __setup_action_bar(self):
+        """
+        Setup the top action bar containing the search input and command buttons.
+        """
+        self.search_line_edit = SearchLineEdit(self)
+        self.search_line_edit.textChanged.connect(self.model.filter)
+
+        self.action_import = Action(FluentIcon.ADD, tr('Import'), triggered=lambda: self.signal_import_requested.emit())
+        self.action_open_catalogue = Action(FluentIcon.FOLDER, tr('Open Folder'), triggered=lambda: self.signal_open_catalogue_folder_requested.emit())
+        self.action_edit = Action(FluentIcon.EDIT, tr('Edit'), enabled=False,triggered=lambda: self.signal_edit_requested.emit())
+
+        menu_combobox_sort = TransparentDropDownPushButton(tr("Sort"), self, FluentIcon.SCROLL)
+        menu_combobox_sort.setMenu(self.__get_sort_menu())
+        menu_combobox_sort.setFixedHeight(34)
+
+        left_command_bar = CommandBar()
+        left_command_bar.setMinimumWidth(600)
+        left_command_bar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        left_command_bar.addAction(self.action_import)
+        left_command_bar.addAction(self.action_open_catalogue)
+        left_command_bar.addWidget(menu_combobox_sort)
+
+        lay = QHBoxLayout()
+        lay.addWidget(left_command_bar)
+        lay.addStretch(1)
+        lay.addWidget(self.search_line_edit)
+
+        container = QWidget()
+        container.setLayout(lay)
+
+        self.master_layout.addWidget(container)
+
+    def __get_sort_menu(self, pos=None):
+        """
+        Create and return the dropdown menu for sorting options.
+
+        :param pos: Optional screen position to display the menu immediately.
+        :return: A RoundMenu containing the sort actions.
+        """
+        menu = CheckableMenu(parent=self, indicatorType=MenuIndicatorType.RADIO)
+
+        action_order_asc = Action(FluentIcon.UP, tr("Ascending"), checkable=True, checked=True, triggered=lambda: self._on_sort_direction_changed(False))
+        action_order_desc = Action(FluentIcon.DOWN, tr("Descending"), checkable=True, triggered=lambda: self._on_sort_direction_changed(True))
+
+        action_order_group = QActionGroup(self)
+        action_order_group.addAction(action_order_asc)
+        action_order_group.addAction(action_order_desc)
+
+        menu.addActions([action_order_asc, action_order_desc])
+        menu.addSeparator()
+
+        action_sort_name = Action(FluentIcon.QUICK_NOTE, tr("Name"), checkable=True, checked=True, triggered=lambda: self._on_sort_type_changed(SnapshotSortKey.NAME))
+        action_sort_author = Action(FluentIcon.PEOPLE, tr("Author"), checkable=True, triggered=lambda: self._on_sort_type_changed(SnapshotSortKey.AUTHOR))
+        action_sort_date_create = Action(FluentIcon.CALENDAR, tr("Creation date"), checkable=True, triggered=lambda: self._on_sort_type_changed(SnapshotSortKey.DATE_CREATED))
+        action_sort_date_modify = Action(FluentIcon.EDIT, tr("Modification date"), checkable=True, triggered=lambda: self._on_sort_type_changed(SnapshotSortKey.DATE_MODIFIED))
+        action_sort_date_dim_mb_assoc = Action(FluentIcon.FOLDER, tr("Size"), checkable=True, triggered=lambda: self._on_sort_type_changed(SnapshotSortKey.ASSOC_DIR_MB_SIZE))
+
+        action_sort_group = QActionGroup(self)
+        action_sort_group.addAction(action_sort_name)
+        action_sort_group.addAction(action_sort_author)
+        action_sort_group.addAction(action_sort_date_create)
+        action_sort_group.addAction(action_sort_date_modify)
+        action_sort_group.addAction(action_sort_date_dim_mb_assoc)
+
+        menu.addActions([
+            action_sort_name,
+            action_sort_author,
+            action_sort_date_create,
+            action_sort_date_modify,
+            action_sort_date_dim_mb_assoc,
+        ])
+
+        if pos is not None:
+            menu.exec(pos, ani=True)
+
+        return menu
+
+    def _on_sort_type_changed(self, sort_key: SnapshotSortKey):
+        """
+        Handle a change in the selected sorting criterion.
+
+        :param sort_key: The new key to sort by.
+        """
+        self._current_sort_key = sort_key
+        self.signal_sort_requested.emit(self._current_sort_key, self._current_sort_reverse)
+
+    def _on_sort_direction_changed(self, reverse: bool):
+        """
+        Handle a change in the sorting direction.
+
+        :param reverse: True for descending, False for ascending.
+        """
+        self._current_sort_reverse = reverse
+        self.signal_sort_requested.emit(self._current_sort_key, self._current_sort_reverse)
+
+    def __setup_table(self):
+        """
+        Configure the main table view for displaying snapshots.
+        Sets up styling, selection behavior, and connects context menu signals.
+        """
+        self.table = TableView(self)
+        self.table.setModel(self.model.table_model)
+
+        # Abilita bordi e angoli arrotondati come nel TableWidget originale
+        self.table.setBorderVisible(True)
+        self.table.setBorderRadius(8)
+
+        self.table.setWordWrap(False)
+        self.table.verticalHeader().hide()
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self.table.setSelectionBehavior(TableView.SelectionBehavior.SelectRows)
+        self.table.setSelectionMode(TableView.SelectionMode.SingleSelection)
+
+        self.table.doubleClicked.connect(self._on_table_item_double_clicked)
+        self.table.selectionModel().selectionChanged.connect(self._on_item_selection_changed)
+        self.table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.table.customContextMenuRequested.connect(self._show_context_menu)
+
+        self._distribuisci_colonne_perc()
+        self.table.resizeEvent = self._table_resize_event
+
+        self.master_layout.addWidget(self.table)
+
+    def __setup_footer(self, count: int = 0, size: str = "0"):
+        """
+        Setup the footer displaying the catalogue path and storage statistics.
+
+        :param count: Total number of snapshots.
+        :param size: Formatted total size string.
+        """
+        lay = QHBoxLayout()
+        self.footer_path_label = BodyLabel(app_settings.get(AppSettings.catalogue_path), self)
+        setFont(self.footer_path_label, 12)
+        self.footer_path_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+
+        self.footer_stats_label = BodyLabel(tr("Total configurations: {count} ({size})", count=count, size=size), self)
+        setFont(self.footer_stats_label, 12)
+        self.footer_stats_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+
+        lay.addWidget(self.footer_path_label)
+        lay.addStretch(1)
+        lay.addWidget(self.footer_stats_label)
+
+        lay.setContentsMargins(QMargins(5, 0, 5, 0))
+
+        container = QWidget(self)
+        container.setLayout(lay)
+        self.master_layout.addWidget(container)
+
+    def _get_export_context_menu(self, snapshot: Snapshot) -> RoundMenu:
+        """
+        Create the submenu for export actions.
+
+        :param snapshot: The snapshot to export.
+        :return: A RoundMenu containing export options.
+        """
+        submenu = RoundMenu(tr("Export"), self)
+        submenu.setIcon(FluentIcon.DOWNLOAD)
+        submenu.addActions([
+            Action(FluentIcon.DICTIONARY, tr('Snapshot (.zip)'), triggered=lambda: self.signal_export_request_snapshot.emit(snapshot)),
+            Action(FluentIcon.FOLDER, tr('Associated folders (.zip)'), triggered=lambda: self.signal_export_request_assoc_folders.emit(snapshot)),
+        ])
+        return submenu
+
+    def _get_delete_context_menu(self, snapshot: Snapshot) -> RoundMenu:
+        """
+        Create the submenu for deletion actions.
+
+        :param snapshot: The snapshot to delete.
+        :return: A RoundMenu containing delete options.
+        """
+        submenu = RoundMenu(tr("Delete"), self)
+        submenu.setIcon(FluentIcon.DELETE)
+        submenu.addActions([
+            Action(FluentIcon.DELETE, tr('Installed folders'), triggered=lambda: self.signal_delete_installed_folders_requested.emit(snapshot)),
+            Action(FluentIcon.DELETE, tr('Entire snapshot'), triggered=lambda: self.signal_delete_requested.emit(snapshot)),
+        ])
+        return submenu
+
+    def _get_open_context_menu(self, snapshot: Snapshot) -> RoundMenu:
+        """
+        Create the submenu for 'Open' actions (e.g. open in file explorer).
+
+        :param snapshot: The target snapshot.
+        :return: A RoundMenu containing open folder options.
+        """
+        submenu = RoundMenu(tr("Open"), self)
+        submenu.setIcon(FluentIcon.VIEW)
+        submenu.addActions([
+            Action(FluentIcon.FOLDER, tr('Snapshot folder'), triggered=lambda: self.signal_open_folder_requested.emit(snapshot)),
+        ])
+        for assoc in snapshot.directories:
+            submenu.addAction(Action(FluentIcon.FOLDER, tr('Associated local folder: {name}', name=Path(assoc.original_path).name), triggered=lambda a=assoc: self.signal_open_assoc_folder_requested.emit(Path(assoc.original_path))))
+        return submenu
+
+    def _show_context_menu(self, pos):
+        """
+        Build and display the context menu for a selected row in the table.
+
+        :param pos: The position where the menu was requested.
+        """
+        index = self.table.indexAt(pos)
+        if not index.isValid():
+            return
+
+        config = self.model.get_snapshot_at(index.row())
+        if not config:
+            return
+
+        menu = RoundMenu()
+        menu.addAction(Action(FluentIcon.DOWN, tr("Install"), triggered=lambda: self.signal_install_requested.emit(config)))
+        menu.addAction(Action(FluentIcon.EDIT, tr("Edit"), triggered=lambda: self.signal_edit_requested.emit(config)))
+        menu.addAction(Action(FluentIcon.SEARCH, tr("Search content"),triggered=lambda: self.signal_search_internal_content_single.emit(config)))
+        menu.addAction(Action(FluentIcon.UP, tr("Update with local"), triggered=lambda: self.signal_update_with_local_dirs_requested.emit(config)))
+        menu.addAction(Action(FluentIcon.DICTIONARY_ADD, tr("Duplicate"), triggered=lambda: self.signal_duplicate_requested.emit(config)))
+        menu.addSeparator()
+        menu.addMenu(self._get_open_context_menu(config))
+        menu.addMenu(self._get_export_context_menu(config))
+        menu.addMenu(self._get_delete_context_menu(config))
+        global_pos = self.table.viewport().mapToGlobal(pos)
+        menu.exec(global_pos)
+
+    def _on_table_item_double_clicked(self, index: QModelIndex):
+        """
+        Handle a double-click on a table row by opening the snapshot's folder.
+
+        :param index: The model index of the clicked item.
+        """
+        config = self.model.get_snapshot_at(index.row())
+        if config:
+            self.signal_open_folder_requested.emit(config)
+
+    def _on_item_selection_changed(self):
+        """
+        Update the UI state based on table selection changes (e.g. enabling the Edit button).
+        """
+        has_selection = self.table.selectionModel().hasSelection()
+        self.action_edit.setEnabled(has_selection)
+
+    def _distribuisci_colonne_perc(self):
+        """
+        Distribute the table column widths proportionally based on the viewport width.
+        """
+        total_width = self.table.viewport().width()
+        if total_width > 0:
+            cols = self.model.table_model.columnCount()
+            # If there are exactly 6 columns, distribute exactly. If more, adjust.
+            percents = [0.20, 0.25]  # Name, Description
+            # Custom columns
+            custom_count = max(0, cols - 6)
+            for _ in range(custom_count):
+                percents.append(0.10)
+            percents.extend([0.10, 0.18, 0.17, 0.10])  # Size, Date/Time, Tags, Author
+            
+            total_perc = sum(percents)
+            normalized_percents = [p / total_perc for p in percents]
+
+            for idx, perc in enumerate(normalized_percents):
+                width = int(total_width * perc)
+                self.table.setColumnWidth(idx, width)
+
+    def _table_resize_event(self, event):
+        """
+        Handle resize events on the table to update column widths.
+
+        :param event: The QResizeEvent.
+        """
+        self._distribuisci_colonne_perc()
+        super(type(self.table), self.table).resizeEvent(event)
+
+    def sort(self, method: SnapshotSortKey, reverse: bool = False):
+        """
+        Programmatically sort the table and clear the search filter.
+
+        :param method: The sorting key.
+        :param reverse: True for descending order.
+        """
+        self.search_line_edit.clear()
+        self.model.sort(method, reverse)
+
+    def reload_data(self):
+        """
+        Refresh the footer statistics and adjust UI layout after data reloading.
+        """
+        self.footer_stats_label.setText(tr("Total configurations: {count} ({size})", count=self.model.count(), size=self.model.get_mb_size()))
+
+        # Aggiorna il path se necessario e le intestazioni della tabella
+        new_path = app_settings.get(AppSettings.catalogue_path)
+        if self.footer_path_label.text() != new_path:
+            self.footer_path_label.setText(new_path)
+
+        self._distribuisci_colonne_perc()
+
+        
+

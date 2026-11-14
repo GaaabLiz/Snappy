@@ -138,7 +138,7 @@ def _import_dashboard_module(monkeypatch):
     class FakeAppSettings:
         @staticmethod
         def get(_key):
-            return "/tmp/devliz-catalogue"
+            return "/tmp/snappy-catalogue"
 
     class FakeAppSettingsKeys:
         catalogue_path = "catalogue_path"
@@ -147,11 +147,11 @@ def _import_dashboard_module(monkeypatch):
         backup_before_edit = "backup_before_edit"
         backup_before_delete = "backup_before_delete"
 
-    class FakeDevlizSnapshotData:
+    class FakeSnappySnapshotData:
         def __init__(self, snapshot_list):
             self.snapshot_list = snapshot_list
 
-    class FakeDevlizData:
+    class FakeSnappyData:
         def __init__(self, snapshots=None):
             self.snapshots = snapshots or []
 
@@ -163,13 +163,13 @@ def _import_dashboard_module(monkeypatch):
         def update_data(self):
             pass
 
-    fake_action_history_module = types.ModuleType("devliz.model.history")
+    fake_action_history_module = types.ModuleType("snappy.model.history")
 
     def fake_log_action(screen_key, action_key, details=""):
         actions.append((getattr(screen_key, "value", screen_key), getattr(action_key, "value", action_key), details))
 
     fake_action_history_module.log_action = fake_log_action
-    from devliz.model.history import ActionCategory, ActionType
+    from snappy.model.history import ActionCategory, ActionType
     fake_action_history_module.ActionCategory = ActionCategory
     fake_action_history_module.ActionType = ActionType
 
@@ -177,14 +177,14 @@ def _import_dashboard_module(monkeypatch):
     class FakeSnapSettings:
         pass
 
-    fake_app_module = types.ModuleType("devliz.application.app")
+    fake_app_module = types.ModuleType("snappy.application.app")
     fake_app_module.app_settings = FakeAppSettings()
     fake_app_module.AppSettings = FakeAppSettingsKeys
     fake_app_module.snap_settings = FakeSnapSettings()
 
-    fake_data_module = types.ModuleType("devliz.domain.data")
-    fake_data_module.DevlizData = FakeDevlizData
-    fake_data_module.DevlizSnapshotData = FakeDevlizSnapshotData
+    fake_data_module = types.ModuleType("snappy.domain.data")
+    fake_data_module.SnappyData = FakeSnappyData
+    fake_data_module.SnappySnapshotData = FakeSnappySnapshotData
 
     fake_qfluentwidgets = types.ModuleType("qfluentwidgets")
     fake_qfluentwidgets.FluentIcon = FakeFluentIcon
@@ -204,30 +204,30 @@ def _import_dashboard_module(monkeypatch):
     fake_ui_utils_module.UiUtils = FakeUiUtils
     monkeypatch.setitem(sys.modules, "pylizlib.qtfw.util.ui", fake_ui_utils_module)
 
-    monkeypatch.setitem(sys.modules, "devliz.model.history", fake_action_history_module)
-    monkeypatch.setitem(sys.modules, "devliz.application.app", fake_app_module)
-    monkeypatch.setitem(sys.modules, "devliz.domain.data", fake_data_module)
+    monkeypatch.setitem(sys.modules, "snappy.model.history", fake_action_history_module)
+    monkeypatch.setitem(sys.modules, "snappy.application.app", fake_app_module)
+    monkeypatch.setitem(sys.modules, "snappy.domain.data", fake_data_module)
     monkeypatch.setitem(sys.modules, "qfluentwidgets", fake_qfluentwidgets)
     monkeypatch.setitem(sys.modules, "pylizlib.qt.domain.view", fake_ui_module)
     monkeypatch.setitem(sys.modules, "loguru", fake_logger_module)
 
     for module_name, cls_name, cls in [
-        ("devliz.controller.history", "ActionHistoryController", FakeActionHistoryController),
-        ("devliz.controller.catalogue_searcher", "CatalogueSearcherController", FakeSearcherController),
-        ("devliz.controller.catalogue", "CatalogueController", FakeCatalogueController),
-        ("devliz.controller.help", "HelpController", FakeHelpController),
-        ("devliz.controller.home", "HomeController", FakeHomeController),
-        ("devliz.controller.setting_controller", "SettingController", FakeSettingController),
-        ("devliz.controller.backup", "BackupController", FakeBackupController),
-        ("devliz.model.dashboard", "DashboardModel", FakeDashboardModel),
-        ("devliz.view.dashboard", "DashboardView", FakeDashboardView),
+        ("snappy.controller.history", "ActionHistoryController", FakeActionHistoryController),
+        ("snappy.controller.catalogue_searcher", "CatalogueSearcherController", FakeSearcherController),
+        ("snappy.controller.catalogue", "CatalogueController", FakeCatalogueController),
+        ("snappy.controller.help", "HelpController", FakeHelpController),
+        ("snappy.controller.home", "HomeController", FakeHomeController),
+        ("snappy.controller.setting_controller", "SettingController", FakeSettingController),
+        ("snappy.controller.backup", "BackupController", FakeBackupController),
+        ("snappy.model.dashboard", "DashboardModel", FakeDashboardModel),
+        ("snappy.view.dashboard", "DashboardView", FakeDashboardView),
     ]:
         module = types.ModuleType(module_name)
         setattr(module, cls_name, cls)
         monkeypatch.setitem(sys.modules, module_name, module)
 
-    sys.modules.pop("devliz.controller.dashboard", None)
-    import devliz.controller.dashboard as dashboard_module
+    sys.modules.pop("snappy.controller.dashboard", None)
+    import snappy.controller.dashboard as dashboard_module
 
     return dashboard_module, actions
 
@@ -323,6 +323,6 @@ def test_handle_data_updated_updates_children_and_catalogue_path(monkeypatch):
     assert controller.catalogue.update_data_calls[0].snapshot_list == ["s1", "s2", "s3"]
     assert controller.searcher.open_calls[-1] is None
     assert controller.history.reload_count == 1
-    assert controller.model.snap_catalogue.path_catalogue == Path("/tmp/devliz-catalogue")
+    assert controller.model.snap_catalogue.path_catalogue == Path("/tmp/snappy-catalogue")
     assert ("Dashboard", "dashboard.data.loaded", "snapshots=3") in actions
 

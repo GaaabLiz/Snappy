@@ -40,7 +40,7 @@
 # Name of the importable Python package – the directory that contains
 # __init__.py.  Must match the name declared in [project] > name in
 # pyproject.toml (with hyphens replaced by underscores if needed).
-PYTHON_MAIN_PACKAGE ?= devliz
+PYTHON_MAIN_PACKAGE ?= snappy
 
 
 # ==============================================================================
@@ -142,7 +142,7 @@ INNO_SETUP_FILE ?= installer.iss
 INNO_SETUP_VERSION_VARIABLE ?= MyAppVersion
 
 # Display name shown in the installer UI (e.g., "My App").
-INNO_APP_NAME ?= Devliz
+INNO_APP_NAME ?= Snappy
 
 # Publisher/company name shown in installer metadata.
 INNO_APP_PUBLISHER ?= Your Company
@@ -153,7 +153,7 @@ INNO_APP_ICON ?= resources/logo2.ico
 
 # Relative path to the one-file executable produced by build-exe-onefile.
 # This is the binary that Inno Setup will package.
-INNO_APP_EXE ?= dist/devliz-windows.exe
+INNO_APP_EXE ?= dist/snappy-windows.exe
 
 # Default install directory under Program Files.
 # Typical value: {autopf}\My App
@@ -186,11 +186,11 @@ INNO_SOLID_COMPRESSION ?= yes
 # For each entry <id> you MUST define the four companion variables below.
 #
 # Leave empty to skip all PyInstaller targets.
-APPS_LIST ?= devliz
-devliz_NAME	 := devliz
-devliz_MAIN	 := devliz/main.py
-devliz_ICO	 := resources/logo2.ico
-devliz_ICNS := resources/logo2.icns
+APPS_LIST ?= snappy
+snappy_NAME	 := snappy
+snappy_MAIN	 := snappy/main.py
+snappy_ICO	 := resources/logo2.ico
+snappy_ICNS := resources/logo2.icns
 
 # ── Template – copy and fill in one block per entry in APPS_LIST ──────────────
 #

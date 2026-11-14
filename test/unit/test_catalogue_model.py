@@ -7,7 +7,7 @@ from pylizlib.core.os.snap import Snapshot, SnapshotSortKey
 
 def _import_catalogue_module(monkeypatch):
     # Mock app_settings
-    app_module = types.ModuleType("devliz.application.app")
+    app_module = types.ModuleType("snappy.application.app")
     class FakeAppSettings:
         def get(self, key):
             if key == "snap_custom_data":
@@ -19,26 +19,26 @@ def _import_catalogue_module(monkeypatch):
     app_module.app_settings = FakeAppSettings()
     app_module.AppSettings = FakeAppSettingsKeys
     
-    # Mock DevlizSnapshotData
-    data_module = types.ModuleType("devliz.domain.data")
-    class FakeDevlizSnapshotData:
+    # Mock SnappySnapshotData
+    data_module = types.ModuleType("snappy.domain.data")
+    class FakeSnappySnapshotData:
         def __init__(self, snapshot_list):
             self.snapshot_list = snapshot_list
         @property
         def get_mb_size(self):
             return f"{len(self.snapshot_list)}MB"
-    data_module.DevlizSnapshotData = FakeDevlizSnapshotData
+    data_module.SnappySnapshotData = FakeSnappySnapshotData
     
     # Mock i18n
-    i18n_module = types.ModuleType("devliz.application.i18n")
+    i18n_module = types.ModuleType("snappy.application.i18n")
     i18n_module.tr = lambda x: x
     
-    monkeypatch.setitem(sys.modules, "devliz.application.app", app_module)
-    monkeypatch.setitem(sys.modules, "devliz.domain.data", data_module)
-    monkeypatch.setitem(sys.modules, "devliz.application.i18n", i18n_module)
+    monkeypatch.setitem(sys.modules, "snappy.application.app", app_module)
+    monkeypatch.setitem(sys.modules, "snappy.domain.data", data_module)
+    monkeypatch.setitem(sys.modules, "snappy.application.i18n", i18n_module)
     
-    sys.modules.pop("devliz.model.catalogue", None)
-    import devliz.model.catalogue as catalogue_module
+    sys.modules.pop("snappy.model.catalogue", None)
+    import snappy.model.catalogue as catalogue_module
     return catalogue_module
 
 def test_snapshot_table_model_empty(monkeypatch):

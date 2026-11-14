@@ -1,4 +1,4 @@
-from devliz.view.help import HelpDetailDialog
+from snappy.view.help import HelpDetailDialog
 
 def test_help_detail_dialog(qtbot):
     dialog = HelpDetailDialog("Title", "Subtitle", "Details")

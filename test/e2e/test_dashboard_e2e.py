@@ -4,7 +4,7 @@ def test_dashboard_f5_refresh(qtbot):
     Test E2E for the Dashboard page.
     Simulates the F5 refresh functionality and ensures the UI updates states correctly.
     """
-    from devliz.controller.dashboard import DashboardController
+    from snappy.controller.dashboard import DashboardController
 
     dashboard = DashboardController()
     qtbot.addWidget(dashboard.view)

@@ -4,7 +4,7 @@ def test_search_e2e(qtbot):
     Test E2E for the Search page.
     Navigates to the search page, types a query, and triggers a search.
     """
-    from devliz.controller.dashboard import DashboardController
+    from snappy.controller.dashboard import DashboardController
 
     dashboard = DashboardController()
     qtbot.addWidget(dashboard.view)

@@ -5,13 +5,13 @@
 
 [Setup]
 AppId={{0f0058d8-3cc1-4707-b86a-ed74d880c26a}}
-AppMutex=devlizmutex
-AppName=Devliz
+AppMutex=snappymutex
+AppName=Snappy
 AppVersion={#MyAppVersion}
-DefaultDirName={commonpf}\Devliz
-DefaultGroupName=Devliz
+DefaultDirName={commonpf}\Snappy
+DefaultGroupName=Snappy
 OutputDir=Output
-OutputBaseFilename=devliz-setup
+OutputBaseFilename=snappy-setup
 Compression=lzma
 SolidCompression=yes
 DisableProgramGroupPage=yes
@@ -21,10 +21,10 @@ SetupIconFile=resources\logo2.ico
 Name: "italian"; MessagesFile: "compiler:Languages\Italian.isl"
 
 [Files]
-Source: "dist\devliz\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs
+Source: "dist\snappy\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{group}\Devliz"; Filename: "{app}\devliz.exe"; IconFilename: "{app}\devliz.exe"
+Name: "{group}\Snappy"; Filename: "{app}\snappy.exe"; IconFilename: "{app}\snappy.exe"
 
 [Run]
-Filename: "{app}\devliz.exe"; Description: "Avvia Devliz"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\snappy.exe"; Description: "Avvia Snappy"; Flags: nowait postinstall skipifsilent

@@ -4,16 +4,16 @@ import types
 
 def test_home_controller(monkeypatch, tmp_path):
     # Mock view
-    view_mod = types.ModuleType("devliz.view.home")
+    view_mod = types.ModuleType("snappy.view.home")
     updated = []
     class FakeHomeView:
         def update_statistics(self, stats, backup_count, catalogue_path):
             updated.append((stats, backup_count, catalogue_path))
     view_mod.HomeView = FakeHomeView
-    monkeypatch.setitem(sys.modules, "devliz.view.home", view_mod)
+    monkeypatch.setitem(sys.modules, "snappy.view.home", view_mod)
     
     # Mock app_settings
-    app_mod = types.ModuleType("devliz.application.app")
+    app_mod = types.ModuleType("snappy.application.app")
     class ASK: backup_path="b"; catalogue_path="c"
     
     # create fake backup path with 2 zips
@@ -30,10 +30,10 @@ def test_home_controller(monkeypatch, tmp_path):
     app_mod.AppSettings = ASK
     app_mod.app_settings = AS()
     app_mod.PATH_BACKUPS = "/backups"
-    monkeypatch.setitem(sys.modules, "devliz.application.app", app_mod)
+    monkeypatch.setitem(sys.modules, "snappy.application.app", app_mod)
     
-    sys.modules.pop("devliz.controller.home", None)
-    from devliz.controller.home import HomeController
+    sys.modules.pop("snappy.controller.home", None)
+    from snappy.controller.home import HomeController
     
     ctrl = HomeController()
     

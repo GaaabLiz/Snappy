@@ -4,8 +4,8 @@ from pathlib import Path
 
 def test_catalogue_controller(monkeypatch):
     # Mock i18n
-    import devliz.application.i18n
-    monkeypatch.setattr(devliz.application.i18n, "tr", lambda x, **kw: x.format(**kw) if kw else x)
+    import snappy.application.i18n
+    monkeypatch.setattr(snappy.application.i18n, "tr", lambda x, **kw: x.format(**kw) if kw else x)
     
     # Mock MessageBox
     import qfluentwidgets
@@ -31,7 +31,7 @@ def test_catalogue_controller(monkeypatch):
     monkeypatch.setattr(pylizlib.qtfw.util.ui, "UiUtils", FakeUiUtils)
     
     # Mock DialogConfig
-    dl_mod = types.ModuleType("devliz.view.catalogue_imp_dialog")
+    dl_mod = types.ModuleType("snappy.view.catalogue_imp_dialog")
     class FakeSnapshot:
         def __init__(self, id, name): self.id = id; self.name = name
     class FakeDialogConfig:
@@ -39,21 +39,21 @@ def test_catalogue_controller(monkeypatch):
         def __init__(self, d, e, s): self.output_data = FakeSnapshot("d1", "D1")
         def exec(self): return self.res
     dl_mod.DialogConfig = FakeDialogConfig
-    monkeypatch.setitem(sys.modules, "devliz.view.catalogue_imp_dialog", dl_mod)
+    monkeypatch.setitem(sys.modules, "snappy.view.catalogue_imp_dialog", dl_mod)
     
     # Mock log_action
-    import devliz.model.history as hist_mod
+    import snappy.model.history as hist_mod
     actions = []
     def fake_log(c, t, n): actions.append((c,t,n))
     monkeypatch.setattr(hist_mod, "log_action", fake_log)
     
     # App Settings mock
-    import devliz.application.app
+    import snappy.application.app
     class AS:
         def get(self, k): return True
-    monkeypatch.setattr(devliz.application.app, "app_settings", AS())
+    monkeypatch.setattr(snappy.application.app, "app_settings", AS())
     class FakeApp: path = Path("/app")
-    monkeypatch.setattr(devliz.application.app, "app", FakeApp())
+    monkeypatch.setattr(snappy.application.app, "app", FakeApp())
     
     # Mock pylizlib core Utils for open_system_folder
     import pylizlib.core.os.utils
@@ -68,7 +68,7 @@ def test_catalogue_controller(monkeypatch):
     monkeypatch.setattr(PySide6.QtGui, "QDesktopServices", FakeQDS)
     
     # Mock View & Model
-    view_mod = types.ModuleType("devliz.view.catalogue")
+    view_mod = types.ModuleType("snappy.view.catalogue")
     class FakeSignal:
         def __init__(self): self.c = None
         def connect(self, f): self.c = f
@@ -95,9 +95,9 @@ def test_catalogue_controller(monkeypatch):
         def sort(self): self.sort_calls += 1
         def reload_data(self): pass
     view_mod.SnapshotCatalogueWidget = FakeView
-    monkeypatch.setitem(sys.modules, "devliz.view.catalogue", view_mod)
+    monkeypatch.setitem(sys.modules, "snappy.view.catalogue", view_mod)
     
-    model_mod = types.ModuleType("devliz.model.catalogue")
+    model_mod = types.ModuleType("snappy.model.catalogue")
     class FakeTM:
         def update_headers(self): pass
     class FakeModel:
@@ -105,10 +105,10 @@ def test_catalogue_controller(monkeypatch):
         def set_snapshots(self, l): pass
         def build_snapshot_from_raw(self, raw, old_id=None): return FakeSnapshot("d1", "D1")
     model_mod.CatalogueModel = FakeModel
-    monkeypatch.setitem(sys.modules, "devliz.model.catalogue", model_mod)
+    monkeypatch.setitem(sys.modules, "snappy.model.catalogue", model_mod)
     
     # Mock DashboardModel
-    dash_mod = types.ModuleType("devliz.model.dashboard")
+    dash_mod = types.ModuleType("snappy.model.dashboard")
     class FakeTask:
         def update_task_progress(self, p): pass
         def update_task_message(self, m): pass
@@ -130,21 +130,21 @@ def test_catalogue_controller(monkeypatch):
         def run_heavy_operation(self, n, d, func, success_msg_title="", success_msg="", update_dashboard=True):
             func(FakeTask())
     dash_mod.DashboardModel = FakeDash
-    monkeypatch.setitem(sys.modules, "devliz.model.dashboard", dash_mod)
+    monkeypatch.setitem(sys.modules, "snappy.model.dashboard", dash_mod)
 
-    sys.modules.pop("devliz.controller.catalogue", None)
-    from devliz.controller.catalogue import CatalogueController
-    from devliz.domain.data import DevlizSnapshotData
+    sys.modules.pop("snappy.controller.catalogue", None)
+    from snappy.controller.catalogue import CatalogueController
+    from snappy.domain.data import SnappySnapshotData
     
     search_page_calls = []
     ctrl = CatalogueController(FakeDash(), lambda s: search_page_calls.append(s))
     ctrl.init()
     
-    ctrl.update_data(DevlizSnapshotData([]))
+    ctrl.update_data(SnappySnapshotData([]))
     
     snap = FakeSnapshot("s1", "Snap1")
     
-    from devliz.model.history import ActionType
+    from snappy.model.history import ActionType
     # __open_config_dialog (edit_mode=False) -> signal_import_requested
     ctrl.view.signal_import_requested.emit()
     assert actions[-1][1] == ActionType.CATALOGUE_SNAPSHOT_CREATED
@@ -225,11 +225,11 @@ def test_catalogue_controller(monkeypatch):
     # test exceptions
     def error_action(*args, **kw): raise Exception("fail")
     
-    import devliz.controller.catalogue
-    old_dc = devliz.controller.catalogue.DialogConfig
-    devliz.controller.catalogue.DialogConfig = error_action
+    import snappy.controller.catalogue
+    old_dc = snappy.controller.catalogue.DialogConfig
+    snappy.controller.catalogue.DialogConfig = error_action
     ctrl.view.signal_edit_requested.emit(snap) # emits show_message
-    devliz.controller.catalogue.DialogConfig = old_dc
+    snappy.controller.catalogue.DialogConfig = old_dc
     
     old_exec = FakeDialogConfig.exec
     FakeDialogConfig.exec = error_action

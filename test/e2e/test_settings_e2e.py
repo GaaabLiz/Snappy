@@ -5,8 +5,8 @@ def test_settings_toggle_switch(qtbot):
     Test E2E for the Settings page.
     Navigates to settings and toggles a SwitchSettingCard.
     """
-    from devliz.controller.dashboard import DashboardController
-    from devliz.application.app import snap_settings
+    from snappy.controller.dashboard import DashboardController
+    from snappy.application.app import snap_settings
 
     # Initialize
     dashboard = DashboardController()

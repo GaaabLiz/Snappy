@@ -1,4 +1,4 @@
-from devliz.application import i18n
+from snappy.application import i18n
 
 def test_i18n():
     i18n.set_language("en")
@@ -18,8 +18,8 @@ def test_i18n():
 def test_init_language(monkeypatch):
     class FakeAppSet:
         def get(self, k): return "it"
-    import devliz.application.app
-    monkeypatch.setattr(devliz.application.app, "app_settings", FakeAppSet())
+    import snappy.application.app
+    monkeypatch.setattr(snappy.application.app, "app_settings", FakeAppSet())
     
     i18n.init_language()
     assert i18n.get_language() == "it"

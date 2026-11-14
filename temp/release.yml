@@ -194,7 +194,7 @@ jobs:
         run: |
           uv sync --all-groups
           uv add --group dev pyinstaller
-          uv run pyinstaller --windowed --icon=resources/logo2.ico --name Devliz.exe devliz/main.py
+          uv run pyinstaller --windowed --icon=resources/logo2.ico --name Snappy.exe snappy/main.py
 
       - name: Install Inno Setup
         run: |
@@ -208,7 +208,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            Output/devliz-setup.exe
+            Output/snappy-setup.exe
           append_body: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

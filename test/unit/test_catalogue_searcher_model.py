@@ -8,7 +8,7 @@ from pylizlib.core.os.snap import Snapshot, SnapshotSearchResult, SnapshotSearch
 
 def _import_searcher_module(monkeypatch):
     # Mock i18n
-    i18n_module = types.ModuleType("devliz.application.i18n")
+    i18n_module = types.ModuleType("snappy.application.i18n")
     i18n_module.tr = lambda x, **kwargs: x.format(**kwargs) if kwargs else x
     
     # Mock operation_runner & operation_core
@@ -66,13 +66,13 @@ def _import_searcher_module(monkeypatch):
     domain_module.OperationInfo = FakeOperationInfo
     domain_module.OperationStatus = FakeOperationStatus
     
-    monkeypatch.setitem(sys.modules, "devliz.application.i18n", i18n_module)
+    monkeypatch.setitem(sys.modules, "snappy.application.i18n", i18n_module)
     monkeypatch.setitem(sys.modules, "pylizlib.qt.handler.operation_runner", runner_module)
     monkeypatch.setitem(sys.modules, "pylizlib.qt.handler.operation_core", core_module)
     monkeypatch.setitem(sys.modules, "pylizlib.qt.handler.operation_domain", domain_module)
     
-    sys.modules.pop("devliz.model.catalogue_searcher", None)
-    import devliz.model.catalogue_searcher as searcher_module
+    sys.modules.pop("snappy.model.catalogue_searcher", None)
+    import snappy.model.catalogue_searcher as searcher_module
     return searcher_module
 
 def test_search_results_table_model(monkeypatch):

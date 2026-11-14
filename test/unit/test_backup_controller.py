@@ -3,11 +3,11 @@ import types
 from pathlib import Path
 
 def test_backup_controller(monkeypatch):
-    import devliz.application.i18n
-    monkeypatch.setattr(devliz.application.i18n, "tr", lambda x, **kw: x.format(**kw) if kw else x)
+    import snappy.application.i18n
+    monkeypatch.setattr(snappy.application.i18n, "tr", lambda x, **kw: x.format(**kw) if kw else x)
     
     # Mock action history
-    import devliz.model.history as hist_mod
+    import snappy.model.history as hist_mod
     actions = []
     def fake_log(c, t, d): actions.append((c, t, d))
     monkeypatch.setattr(hist_mod, "log_action", fake_log)
@@ -21,16 +21,16 @@ def test_backup_controller(monkeypatch):
     monkeypatch.setattr(pylizlib.qtfw.util.ui, "UiUtils", FakeUiUtils)
     
     # Mock app_settings
-    app_mod = types.ModuleType("devliz.application.app")
+    app_mod = types.ModuleType("snappy.application.app")
     class ASK: backup_path = "b"
     class AS:
         def get(self, k): return "/backup/path"
     app_mod.AppSettings = ASK
     app_mod.app_settings = AS()
-    monkeypatch.setitem(sys.modules, "devliz.application.app", app_mod)
+    monkeypatch.setitem(sys.modules, "snappy.application.app", app_mod)
     
     # Mock View & Signals
-    view_mod = types.ModuleType("devliz.view.backup")
+    view_mod = types.ModuleType("snappy.view.backup")
     class FakeSignal:
         def __init__(self): self.c = None
         def connect(self, f): self.c = f
@@ -44,14 +44,14 @@ def test_backup_controller(monkeypatch):
         def reload_data(self):
             self.reloaded = True
     view_mod.BackupView = FakeView
-    monkeypatch.setitem(sys.modules, "devliz.view.backup", view_mod)
+    monkeypatch.setitem(sys.modules, "snappy.view.backup", view_mod)
     
-    model_mod = types.ModuleType("devliz.model.backup")
+    model_mod = types.ModuleType("snappy.model.backup")
     class FakeModel:
         def load_backups(self, c, p): pass
         def get_all_backups(self, p): return []
     model_mod.BackupModel = FakeModel
-    monkeypatch.setitem(sys.modules, "devliz.model.backup", model_mod)
+    monkeypatch.setitem(sys.modules, "snappy.model.backup", model_mod)
     
     # Fake catalogue
     class FakeCat:
@@ -73,12 +73,12 @@ def test_backup_controller(monkeypatch):
         def exec_(self): return self.res
 
     # Import Controller
-    sys.modules.pop("devliz.controller.backup", None)
-    from devliz.controller.backup import BackupController
+    sys.modules.pop("snappy.controller.backup", None)
+    from snappy.controller.backup import BackupController
     from pylizlib.core.os.snap.domain import SnapshotBackupInfo
     
-    monkeypatch.setattr("devliz.controller.backup.QDesktopServices", FakeQDS)
-    monkeypatch.setattr("devliz.controller.backup.MessageBox", FakeMessageBox)
+    monkeypatch.setattr("snappy.controller.backup.QDesktopServices", FakeQDS)
+    monkeypatch.setattr("snappy.controller.backup.MessageBox", FakeMessageBox)
     
     cat = FakeCat()
     ctrl = BackupController(cat)

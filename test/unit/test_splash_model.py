@@ -2,7 +2,7 @@ import sys
 import types
 
 def _import_splash_module(monkeypatch):
-    app_module = types.ModuleType("devliz.application.app")
+    app_module = types.ModuleType("snappy.application.app")
     
     class FakeAppSettingsKeys:
         catalogue_path = "catalogue_path"
@@ -19,9 +19,9 @@ def _import_splash_module(monkeypatch):
     app_module.AppSettings = FakeAppSettingsKeys
     app_module.DEFAULT_SETTING_CATALOGUE_PATH = "/default/path"
     
-    monkeypatch.setitem(sys.modules, "devliz.application.app", app_module)
-    sys.modules.pop("devliz.model.splash", None)
-    import devliz.model.splash as splash_module
+    monkeypatch.setitem(sys.modules, "snappy.application.app", app_module)
+    sys.modules.pop("snappy.model.splash", None)
+    import snappy.model.splash as splash_module
     return splash_module
 
 def test_splash_model_check_catalogue_path_exists(monkeypatch, tmp_path):

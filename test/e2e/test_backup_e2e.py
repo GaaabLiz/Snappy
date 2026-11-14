@@ -4,7 +4,7 @@ def test_backup_e2e_empty(qtbot, monkeypatch):
     """
     Test E2E for Backup view with an empty table.
     """
-    from devliz.controller.dashboard import DashboardController
+    from snappy.controller.dashboard import DashboardController
 
     dashboard = DashboardController()
     qtbot.addWidget(dashboard.view)
@@ -30,8 +30,8 @@ def test_backup_e2e_empty(qtbot, monkeypatch):
         def addAction(self, action): pass
         def exec(self, pos): menu_exec_called.append(True)
     
-    import devliz.view.backup
-    monkeypatch.setattr(devliz.view.backup, "RoundMenu", FakeRoundMenu)
+    import snappy.view.backup
+    monkeypatch.setattr(snappy.view.backup, "RoundMenu", FakeRoundMenu)
 
     # Click on the table (it's empty, so indexAt will be invalid)
     # This triggers the _show_context_menu

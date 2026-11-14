@@ -4,7 +4,7 @@ def test_app_dashboard_launch(qtbot):
     Test E2E that opens the Dashboard, verifies it loads,
     and navigates to the Settings page.
     """
-    from devliz.controller.dashboard import DashboardController
+    from snappy.controller.dashboard import DashboardController
     
     # Inizializza il controller principale della dashboard
     dashboard = DashboardController()

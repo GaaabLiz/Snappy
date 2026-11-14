@@ -1,5 +1,5 @@
 from PySide6.QtCore import QPoint
-from devliz.view.catalogue_imp_tab_directories import TabDirectories
+from snappy.view.catalogue_imp_tab_directories import TabDirectories
 from pylizlib.core.os.snap import Snapshot, SnapDirAssociation
 from pathlib import Path
 
@@ -16,13 +16,13 @@ def test_tab_directories(qtbot, monkeypatch):
     assert tab._check_directories_changed() is None  # it emits signal internally
     
     # Test context menu deletion
-    import devliz.view.catalogue_imp_tab_directories
+    import snappy.view.catalogue_imp_tab_directories
     class FakeRoundMenu:
         def __init__(self, parent=None): self.acts = []
         def addAction(self, a): self.acts.append(a)
         def exec(self, pos):
             for a in self.acts: a.trigger()
-    monkeypatch.setattr(devliz.view.catalogue_imp_tab_directories, "RoundMenu", FakeRoundMenu)
+    monkeypatch.setattr(snappy.view.catalogue_imp_tab_directories, "RoundMenu", FakeRoundMenu)
     
     tab._TabDirectories__show_context_menu(QPoint(0,0))
     # It deletes selected item if one is selected, but let's mock itemAt
@@ -35,7 +35,7 @@ def test_tab_directories(qtbot, monkeypatch):
     class FakeQFileDialog:
         @classmethod
         def getExistingDirectory(cls, *args): return "/tmp/dir4"
-    monkeypatch.setattr(devliz.view.catalogue_imp_tab_directories, "QFileDialog", FakeQFileDialog)
+    monkeypatch.setattr(snappy.view.catalogue_imp_tab_directories, "QFileDialog", FakeQFileDialog)
     
     # mock exists
     monkeypatch.setattr(Path, "exists", lambda self: True)
@@ -47,5 +47,5 @@ def test_tab_directories(qtbot, monkeypatch):
     class FakeQFileDialogEmpty:
         @classmethod
         def getExistingDirectory(cls, *args): return ""
-    monkeypatch.setattr(devliz.view.catalogue_imp_tab_directories, "QFileDialog", FakeQFileDialogEmpty)
+    monkeypatch.setattr(snappy.view.catalogue_imp_tab_directories, "QFileDialog", FakeQFileDialogEmpty)
     tab._TabDirectories__on_add_directory_request()

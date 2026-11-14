@@ -2,8 +2,8 @@ import sys
 import types
 
 def test_splash_controller(monkeypatch):
-    import devliz.application.i18n
-    monkeypatch.setattr(devliz.application.i18n, "tr", lambda x, **kw: x.format(**kw) if kw else x)
+    import snappy.application.i18n
+    monkeypatch.setattr(snappy.application.i18n, "tr", lambda x, **kw: x.format(**kw) if kw else x)
     
     # Mock QTimer, QEventLoop
     import PySide6.QtCore
@@ -17,7 +17,7 @@ def test_splash_controller(monkeypatch):
     monkeypatch.setattr(PySide6.QtCore, "QTimer", FakeTimer)
     
     # Mock View & Model
-    view_mod = types.ModuleType("devliz.view.splash")
+    view_mod = types.ModuleType("snappy.view.splash")
     class FakeView:
         res = True
         def show_splash(self): pass
@@ -25,9 +25,9 @@ def test_splash_controller(monkeypatch):
         def close_splash(self): pass
         def show_catalogue_error_dialog(self, path): return self.res
     view_mod.SplashWindow = FakeView
-    monkeypatch.setitem(sys.modules, "devliz.view.splash", view_mod)
+    monkeypatch.setitem(sys.modules, "snappy.view.splash", view_mod)
     
-    model_mod = types.ModuleType("devliz.model.splash")
+    model_mod = types.ModuleType("snappy.model.splash")
     class FakeModel:
         def __init__(self):
             self.valid = True
@@ -36,10 +36,10 @@ def test_splash_controller(monkeypatch):
         def get_catalogue_path_str(self): return "cat"
         def set_default_catalogue_path(self): self.default_set = True
     model_mod.SplashModel = FakeModel
-    monkeypatch.setitem(sys.modules, "devliz.model.splash", model_mod)
+    monkeypatch.setitem(sys.modules, "snappy.model.splash", model_mod)
     
-    sys.modules.pop("devliz.controller.splash", None)
-    from devliz.controller.splash import SplashController
+    sys.modules.pop("snappy.controller.splash", None)
+    from snappy.controller.splash import SplashController
     
     ctrl = SplashController()
     

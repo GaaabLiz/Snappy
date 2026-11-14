@@ -3,10 +3,10 @@ def test_history(monkeypatch, tmp_path):
     db_path = tmp_path / "test_history.db"
     
     # Need to patch app before importing action_history because it's imported at module level
-    import devliz.application.app
-    monkeypatch.setattr(devliz.application.app.app, "get_path", lambda: str(tmp_path))
+    import snappy.application.app
+    monkeypatch.setattr(snappy.application.app.app, "get_path", lambda: str(tmp_path))
     
-    import devliz.model.history as ah
+    import snappy.model.history as ah
     monkeypatch.setattr(ah, "PATH_ACTION_HISTORY_DB", db_path)
     
     ah.init_action_history_db()

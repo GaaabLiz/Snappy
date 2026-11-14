@@ -5,13 +5,13 @@ def test_catalogue_searcher_controller(monkeypatch):
     dark_mod = types.ModuleType("darkdetect")
     monkeypatch.setitem(sys.modules, "darkdetect", dark_mod)
 
-    import devliz.application.i18n
-    monkeypatch.setattr(devliz.application.i18n, "tr", lambda x, **kw: x.format(**kw) if kw else x)
+    import snappy.application.i18n
+    monkeypatch.setattr(snappy.application.i18n, "tr", lambda x, **kw: x.format(**kw) if kw else x)
     
     # Mocks removed from here
     
     # Mock log_action
-    import devliz.model.history as hist_mod
+    import snappy.model.history as hist_mod
     actions = []
     def fake_log(c, t, n): actions.append((c,t,n))
     monkeypatch.setattr(hist_mod, "log_action", fake_log)
@@ -33,7 +33,7 @@ def test_catalogue_searcher_controller(monkeypatch):
     monkeypatch.setattr(qfluentwidgets, "MessageBox", FakeMessageBox)
     
     # Mock View & Model
-    view_mod = types.ModuleType("devliz.view.catalogue_searcher")
+    view_mod = types.ModuleType("snappy.view.catalogue_searcher")
     class FakeSignal:
         def __init__(self): self.c = None
         def connect(self, f): self.c = f
@@ -75,9 +75,9 @@ def test_catalogue_searcher_controller(monkeypatch):
         def exec(self): pass
     view_mod.CatalogueSearcherView = FakeView
     view_mod.SnapshotResultsDialog = FakeResultsDialog
-    monkeypatch.setitem(sys.modules, "devliz.view.catalogue_searcher", view_mod)
+    monkeypatch.setitem(sys.modules, "snappy.view.catalogue_searcher", view_mod)
     
-    model_mod = types.ModuleType("devliz.model.catalogue_searcher")
+    model_mod = types.ModuleType("snappy.model.catalogue_searcher")
     class FakeTM:
         def remove_snapshot(self, row): pass
     class FakeTreeMan:
@@ -97,10 +97,10 @@ def test_catalogue_searcher_controller(monkeypatch):
         def load_snapshots_from_catalogue(self, s): pass
     model_mod.CatalogueSearcherModel = FakeModel
     model_mod.SearchResultsTreeModel = FakeTreeMan
-    monkeypatch.setitem(sys.modules, "devliz.model.catalogue_searcher", model_mod)
+    monkeypatch.setitem(sys.modules, "snappy.model.catalogue_searcher", model_mod)
     
-    sys.modules.pop("devliz.controller.catalogue_searcher", None)
-    from devliz.controller.catalogue_searcher import CatalogueSearcherController
+    sys.modules.pop("snappy.controller.catalogue_searcher", None)
+    from snappy.controller.catalogue_searcher import CatalogueSearcherController
     
     ctrl = CatalogueSearcherController(None)
     
@@ -108,7 +108,7 @@ def test_catalogue_searcher_controller(monkeypatch):
     ctrl.open()
     
     # delete
-    from devliz.model.history import ActionType
+    from snappy.model.history import ActionType
     ctrl.view.signal_delete_requested.emit(1)
     assert actions[-1][1] == ActionType.SEARCH_SNAPSHOT_REMOVED
     

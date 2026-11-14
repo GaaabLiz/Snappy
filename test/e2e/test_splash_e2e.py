@@ -1,5 +1,5 @@
 import sys
-from devliz.controller.splash import SplashController
+from snappy.controller.splash import SplashController
 
 def test_splash_e2e_catalogue_exists(qtbot, monkeypatch):
     """Test splash screen when catalogue exists."""
@@ -30,7 +30,7 @@ def test_splash_e2e_catalogue_missing_use_default(qtbot, monkeypatch):
     controller.start()
     
     # In case 1 (yes), it sets default catalogue path
-    from devliz.application.app import app_settings, AppSettings, app
+    from snappy.application.app import app_settings, AppSettings, app
     from pathlib import Path
     assert app_settings.get(AppSettings.catalogue_path) == str(Path(app.path) / "Catalogue")
 

@@ -6,11 +6,11 @@ from pylizlib.core.os.snap.domain import BackupType
 
 
 def test_setting_controller(monkeypatch, tmp_path):
-    import devliz.application.i18n
-    monkeypatch.setattr(devliz.application.i18n, "tr", lambda x, **kw: x.format(**kw) if kw else x)
+    import snappy.application.i18n
+    monkeypatch.setattr(snappy.application.i18n, "tr", lambda x, **kw: x.format(**kw) if kw else x)
     
     # Mock log_action
-    import devliz.model.history as hist_mod
+    import snappy.model.history as hist_mod
     actions = []
     def fake_log(c, t, n): actions.append((c,t,n))
     monkeypatch.setattr(hist_mod, "log_action", fake_log)
@@ -95,7 +95,7 @@ def test_setting_controller(monkeypatch, tmp_path):
         def emit(self, *args): self.c(*args) if self.c else None
 
     # Mock app_settings
-    app_mod = types.ModuleType("devliz.application.app")
+    app_mod = types.ModuleType("snappy.application.app")
     class FakeConfigItem:
         def __init__(self, key):
             self.key = key
@@ -124,10 +124,10 @@ def test_setting_controller(monkeypatch, tmp_path):
     app_mod.RESOURCE_ID_LOGO = "logo.png"
     class FakeApp: path = "/app_path"; name="app"; version="1.0"
     app_mod.app = FakeApp()
-    monkeypatch.setitem(sys.modules, "devliz.application.app", app_mod)
+    monkeypatch.setitem(sys.modules, "snappy.application.app", app_mod)
     
     # Mock View & Model
-    view_mod = types.ModuleType("devliz.view.setting")
+    view_mod = types.ModuleType("snappy.view.setting")
     class FakeCard:
         def setContent(self, c): pass
     class FakeView:
@@ -145,9 +145,9 @@ def test_setting_controller(monkeypatch, tmp_path):
         def update_catalogue_path(self, path): pass
         def update_backup_path(self, path): pass
     view_mod.WidgetSettings = FakeView
-    monkeypatch.setitem(sys.modules, "devliz.view.setting", view_mod)
+    monkeypatch.setitem(sys.modules, "snappy.view.setting", view_mod)
     
-    dash_mod = types.ModuleType("devliz.model.dashboard")
+    dash_mod = types.ModuleType("snappy.model.dashboard")
     class FakeCat:
         def __init__(self):
             self.list_calls = []
@@ -183,17 +183,17 @@ def test_setting_controller(monkeypatch, tmp_path):
         def __init__(self): self.snap_catalogue = FakeCat()
         def update(self): pass
     dash_mod.DashboardModel = FakeDash
-    monkeypatch.setitem(sys.modules, "devliz.model.dashboard", dash_mod)
+    monkeypatch.setitem(sys.modules, "snappy.model.dashboard", dash_mod)
     
-    sys.modules.pop("devliz.controller.setting", None)
-    sys.modules.pop("devliz.model.setting", None)
-    import devliz.model.history as hist_mod
+    sys.modules.pop("snappy.controller.setting", None)
+    sys.modules.pop("snappy.model.setting", None)
+    import snappy.model.history as hist_mod
     monkeypatch.setattr(hist_mod, "log_action", fake_log)
-    from devliz.controller.setting import SettingController
+    from snappy.controller.setting import SettingController
     dash = FakeDash()
     ctrl = SettingController(dash)
     
-    from devliz.model.history import ActionType
+    from snappy.model.history import ActionType
     
     # theme/lang changed
     ctrl.view.signal_language_changed.emit()

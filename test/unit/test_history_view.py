@@ -1,6 +1,6 @@
 from PySide6.QtCore import Qt
-from devliz.view.history import ActionHistoryView
-from devliz.model.history import ActionHistoryTableModel
+from snappy.view.history import ActionHistoryView
+from snappy.model.history import ActionHistoryTableModel
 
 def test_history_model():
     model = ActionHistoryTableModel()

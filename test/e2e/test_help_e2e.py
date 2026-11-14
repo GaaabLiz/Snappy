@@ -5,7 +5,7 @@ def test_help_e2e(qtbot, monkeypatch):
     Test E2E for the Help page.
     Navigates to the Help view and clicks a card.
     """
-    from devliz.controller.dashboard import DashboardController
+    from snappy.controller.dashboard import DashboardController
 
     dashboard = DashboardController()
     qtbot.addWidget(dashboard.view)
@@ -25,16 +25,16 @@ def test_help_e2e(qtbot, monkeypatch):
     help_view = dashboard.help.view
 
     # Mock HelpDetailDialog
-    import devliz.view.help
+    import snappy.view.help
     class FakeHelpDialog:
         def __init__(self, t, s, d, parent=None): pass
         def exec(self): return True
         def exec_(self): return True
-    monkeypatch.setattr(devliz.view.help, "HelpDetailDialog", FakeHelpDialog)
+    monkeypatch.setattr(snappy.view.help, "HelpDetailDialog", FakeHelpDialog)
 
     # Click a card
     # We find the first card in the view
-    card = help_view.findChildren(devliz.view.help.HelpGuideCard)[0]
+    card = help_view.findChildren(snappy.view.help.HelpGuideCard)[0]
     
     # We'll click it
     qtbot.mouseClick(card, Qt.LeftButton)

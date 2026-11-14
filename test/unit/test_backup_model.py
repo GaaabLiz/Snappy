@@ -4,7 +4,7 @@ from pathlib import Path
 from PySide6.QtCore import Qt
 from pylizlib.core.os.snap.domain import SnapshotBackupInfo, BackupType
 
-from devliz.model.backup import BackupTableModel, BackupModel
+from snappy.model.backup import BackupTableModel, BackupModel
 
 class FakeSnapshotCatalogue:
     def __init__(self, backups):

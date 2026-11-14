@@ -1,8 +1,8 @@
 from pathlib import Path
 from PySide6.QtCore import Qt
 
-from devliz.domain.data import DevlizData
-from devliz.view.catalogue_imp_dialog import DialogConfig
+from snappy.domain.data import SnappyData
+from snappy.view.catalogue_imp_dialog import DialogConfig
 
 def test_catalogue_import_dialog_e2e(qtbot, monkeypatch):
     """
@@ -15,9 +15,9 @@ def test_catalogue_import_dialog_e2e(qtbot, monkeypatch):
     monkeypatch.setattr(MessageBox, "exec_", lambda self: True)
 
     # Empty data
-    data = DevlizData(monitored_software=[], monitored_services=None, snapshots=[])
+    data = SnappyData(monitored_software=[], monitored_services=None, snapshots=[])
 
-    dialog = DialogConfig(devliz_data=data, edit_mode=False)
+    dialog = DialogConfig(snappy_data=data, edit_mode=False)
     qtbot.addWidget(dialog)
 
     # Show the dialog but don't block the event loop with exec()
@@ -28,13 +28,13 @@ def test_catalogue_import_dialog_e2e(qtbot, monkeypatch):
     assert dialog.btn_create.isEnabled()
 
     # Mock UiUtils to track messages
-    import devliz.view.catalogue_imp_dialog
+    import snappy.view.catalogue_imp_dialog
     messages = []
     class FakeUiUtils:
         @classmethod
         def show_message(cls, title, text, parent=None):
             messages.append(text)
-    monkeypatch.setattr(devliz.view.catalogue_imp_dialog, "UiUtils", FakeUiUtils)
+    monkeypatch.setattr(snappy.view.catalogue_imp_dialog, "UiUtils", FakeUiUtils)
 
     # Click create while empty
     qtbot.mouseClick(dialog.btn_create, Qt.LeftButton)
