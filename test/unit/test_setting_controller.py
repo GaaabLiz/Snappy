@@ -25,7 +25,9 @@ def test_setting_controller(monkeypatch, tmp_path):
         def openUrl(cls, u): opened.append(str(u))
     class FakeProcess:
         @classmethod
-        def startDetached(cls, cmd, args): processes.append((cmd, args))
+        def startDetached(cls, cmd, args):
+            processes.append((cmd, args))
+            return True, 123
     monkeypatch.setattr(PySide6.QtGui, "QDesktopServices", FakeQDS)
     monkeypatch.setattr(PySide6.QtCore, "QProcess", FakeProcess)
     

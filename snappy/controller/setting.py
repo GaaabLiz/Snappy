@@ -2,11 +2,11 @@ import os
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QProcess, QUrl
+from PySide6.QtCore import QProcess, QUrl, Qt, QTimer
 from PySide6.QtGui import QIcon, QDesktopServices
 from PySide6.QtWidgets import QFileDialog, QApplication
 from pylizlib.qtfw.widgets.dialog.about import AboutMessageBox
-from qfluentwidgets import MessageBox
+from qfluentwidgets import MessageBox, InfoBar, InfoBarPosition
 
 from snappy.application.app import app, RESOURCE_ID_LOGO
 from snappy.application.i18n import tr
@@ -37,6 +37,7 @@ class SettingController:
         # Instantiate Model and View
         self.model = SettingModel(dash_model)
         self.view = WidgetSettings()
+        self._restart_pending = False
 
         # Connections: View -> Controller/Model
         self.view.signal_request_update.connect(self.dash_model.update)
@@ -62,15 +63,67 @@ class SettingController:
         """
         Handles language or theme changes by prompting the user to restart the application.
 
-        If confirmed, it logs the restart and restarts the application programmatically.
+        If confirmed, it waits for active operations to finish before restarting.
         """
+        if self._restart_pending:
+            return
+
         w = MessageBox(tr("Restart required"), tr("The application needs to restart to apply the changes. Restart now?"), parent=self.view)
         if w.exec_():
-            self.model.log_restart_confirmed()
-            args = sys.argv[:]
-            args[0] = os.path.abspath(args[0])
-            QProcess.startDetached(sys.executable, args)
-            QApplication.instance().quit()
+            self._restart_pending = True
+            if self.dash_model.operation_active:
+                InfoBar.info(
+                    title=tr("Restart queued"),
+                    content=tr("The application will restart when current operations finish."),
+                    orient=Qt.Orientation.Horizontal,
+                    isClosable=True,
+                    position=InfoBarPosition.TOP_RIGHT,
+                    duration=5000,
+                    parent=self.view,
+                )
+                QTimer.singleShot(100, self.__restart_when_idle)
+                return
+            self.__restart_when_idle()
+
+    def __restart_when_idle(self):
+        """Waits for current work, then starts a replacement process before quitting."""
+        if not self._restart_pending:
+            return
+        if self.dash_model.operation_active:
+            QTimer.singleShot(100, self.__restart_when_idle)
+            return
+
+        args = sys.argv[:]
+        if not args:
+            self.__show_restart_error(tr("The application entry point is unavailable."))
+            return
+        args[0] = os.path.abspath(args[0])
+
+        try:
+            result = QProcess.startDetached(sys.executable, args)
+            started = result[0] if isinstance(result, tuple) else bool(result)
+        except Exception as error:
+            started = False
+            error_detail = str(error)
+        else:
+            error_detail = tr("Qt did not start the process.")
+
+        if not started:
+            self.__show_restart_error(error_detail)
+            return
+
+        self.model.log_restart_confirmed()
+        self._restart_pending = False
+        QApplication.instance().quit()
+
+    def __show_restart_error(self, error: str):
+        """Leaves the current session running and reports a failed restart."""
+        self._restart_pending = False
+        MessageBox(
+            tr("Error"),
+            tr("The new application process could not be started: {error}", error=error),
+            parent=self.view,
+        ).exec_()
 
     def __ask_catalogue_path(self):
         """
