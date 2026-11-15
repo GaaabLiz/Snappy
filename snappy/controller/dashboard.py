@@ -1,12 +1,9 @@
-from pathlib import Path
-
 from PySide6.QtCore import Qt
 from loguru import logger
 from pylizlib.qt.domain.view import UiWidgetMode
 from pylizlib.qtfw.util.ui import UiUtils
 from qfluentwidgets import FluentIcon, InfoBar, InfoBarPosition, NavigationItemPosition
 
-from snappy.application.app import app_settings, AppSettings
 from snappy.application.i18n import tr
 from snappy.model.history import log_action, ActionCategory, ActionType
 from snappy.controller.history import ActionHistoryController
@@ -45,9 +42,11 @@ class DashboardController:
         self.home = HomeController()
         if hasattr(self.home, "set_catalogue"):
             self.home.set_catalogue(self.model.snap_catalogue)
-        self.searcher = CatalogueSearcherController(self.model.snap_catalogue, self.view)
+        self.searcher = CatalogueSearcherController(
+            self.model.snap_catalogue, self.view, operations=self.model.operations
+        )
         self.history = ActionHistoryController()
-        self.backup = BackupController(self.model.snap_catalogue)
+        self.backup = BackupController(self.model)
         self.help = HelpController()
         self.catalogue = CatalogueController(self.model, self.__open_search_page)
         self.settings = SettingController(self.model)
@@ -87,7 +86,6 @@ class DashboardController:
         self.history.reload()
         log_action(ActionCategory.DASHBOARD, ActionType.DASHBOARD_DATA_LOADED, f"snapshots={len(data.snapshots)}")
 
-        self.model.snap_catalogue.path_catalogue = Path(app_settings.get(AppSettings.catalogue_path))
 
 
     def __handle_update_started(self):
@@ -110,6 +108,8 @@ class DashboardController:
 
         Restores all child views to a 'DISPLAYING' state.
         """
+        if self.operation_active:
+            return
         log_action(ActionCategory.DASHBOARD, ActionType.DASHBOARD_REFRESH_COMPLETED, "")
         self.home.view.set_state(UiWidgetMode.DISPLAYING)
         self.catalogue.view.set_state(UiWidgetMode.DISPLAYING)
@@ -142,14 +142,25 @@ class DashboardController:
     def __handle_update_already_running(self):
         """Show a brief notice when an update request is rejected as a duplicate."""
         InfoBar.warning(
-            title=tr("Update already in progress"),
-            content=tr("Wait for the current update to finish before starting another."),
+            title=tr("Operation already in progress"),
+            content=tr("Wait for the current operation to finish before starting another."),
             orient=Qt.Orientation.Horizontal,
             isClosable=True,
             position=InfoBarPosition.TOP_RIGHT,
             duration=3500,
             parent=self.view,
         )
+
+    @property
+    def operation_active(self) -> bool:
+        return self.model.operation_active
+
+    def __handle_operation_active_changed(self, active: bool):
+        for controller in (self.catalogue, self.backup, self.settings):
+            controller.view.setEnabled(not active)
+        # The current search keeps its progress and Stop controls accessible.
+        searching = self.model.operations.is_owned_by(self.searcher.model)
+        self.searcher.view.setEnabled(not active or searching)
 
     def __on_page_changed(self, index: int):
         """
@@ -169,6 +180,7 @@ class DashboardController:
         """
         self.view.f5_pressed.connect(self.__on_f5_pressed)
         self.view.stackedWidget.currentChanged.connect(self.__on_page_changed)
+        self.model.signal_on_operation_active_changed.connect(self.__handle_operation_active_changed)
         self.model.signal_on_update_started.connect(self.__handle_update_started)
         self.model.signal_on_update_complete.connect(self.__handle_update_complete)
         self.model.signal_on_update_already_running.connect(self.__handle_update_already_running)
@@ -178,7 +190,6 @@ class DashboardController:
         self.model.signal_on_update_detail_text.connect(self.__handle_update_detail_text)
         self.model.signal_on_heavy_operation_success.connect(UiUtils.show_message)
         self.model.signal_on_heavy_operation_error.connect(UiUtils.show_message)
-        self.backup.signal_request_refresh.connect(self.model.update)
         
     def __handle_update_progress(self, progress: int):
         """

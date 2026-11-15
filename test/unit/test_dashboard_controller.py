@@ -1,6 +1,7 @@
 import sys
 import types
-from pathlib import Path
+
+from snappy.model.operation import OperationState
 
 
 def _import_dashboard_module(monkeypatch):
@@ -23,6 +24,9 @@ def _import_dashboard_module(monkeypatch):
             self.states = []
             self.progress = []
             self.text = []
+
+        def setEnabled(self, enabled):
+            self.enabled = enabled
 
         def set_state(self, state):
             self.states.append(state)
@@ -67,7 +71,8 @@ def _import_dashboard_module(monkeypatch):
             self.update_data_calls.append(data)
 
     class FakeSearcherController:
-        def __init__(self, _snap_catalogue, _view):
+        def __init__(self, _snap_catalogue, _view, *, operations):
+            self.model = object()
             self.view = FakePageView("Search")
             self.open_calls = []
 
@@ -104,6 +109,10 @@ def _import_dashboard_module(monkeypatch):
 
     class FakeDashboardModel:
         def __init__(self):
+            self.operations = OperationState()
+            self.operation_active = False
+            self.signal_on_operation_active_changed = FakeSignal()
+            self.signal_on_update_already_running = FakeSignal()
             self.signal_on_update_started = FakeSignal()
             self.signal_on_update_complete = FakeSignal()
             self.signal_on_updated_data_available = FakeSignal()
@@ -187,6 +196,8 @@ def _import_dashboard_module(monkeypatch):
     fake_data_module.SnappySnapshotData = FakeSnappySnapshotData
 
     fake_qfluentwidgets = types.ModuleType("qfluentwidgets")
+    fake_qfluentwidgets.InfoBar = types.SimpleNamespace(warning=lambda **kwargs: None)
+    fake_qfluentwidgets.InfoBarPosition = types.SimpleNamespace(TOP_RIGHT="TOP_RIGHT")
     fake_qfluentwidgets.FluentIcon = FakeFluentIcon
     fake_qfluentwidgets.NavigationItemPosition = FakeNavigationItemPosition
 
@@ -217,7 +228,7 @@ def _import_dashboard_module(monkeypatch):
         ("snappy.controller.catalogue", "CatalogueController", FakeCatalogueController),
         ("snappy.controller.help", "HelpController", FakeHelpController),
         ("snappy.controller.home", "HomeController", FakeHomeController),
-        ("snappy.controller.setting_controller", "SettingController", FakeSettingController),
+        ("snappy.controller.setting", "SettingController", FakeSettingController),
         ("snappy.controller.backup", "BackupController", FakeBackupController),
         ("snappy.model.dashboard", "DashboardModel", FakeDashboardModel),
         ("snappy.view.dashboard", "DashboardView", FakeDashboardView),
@@ -235,8 +246,6 @@ def _import_dashboard_module(monkeypatch):
 def test_start_connects_signals_and_runs_initial_refresh(monkeypatch):
     dashboard_module, actions = _import_dashboard_module(monkeypatch)
     controller = dashboard_module.DashboardController()
-    if hasattr(controller, "view") and "qtbot" in locals() and hasattr(qtbot, "addWidget"):
-        qtbot.addWidget(controller.view)
 
     assert len(controller.view.added_sub_interfaces) == 7
 
@@ -260,8 +269,6 @@ def test_start_connects_signals_and_runs_initial_refresh(monkeypatch):
 def test_open_search_page_switches_view_and_logs_scope(monkeypatch):
     dashboard_module, actions = _import_dashboard_module(monkeypatch)
     controller = dashboard_module.DashboardController()
-    if hasattr(controller, "view") and "qtbot" in locals() and hasattr(qtbot, "addWidget"):
-        qtbot.addWidget(controller.view)
 
     controller._DashboardController__open_search_page()
     assert controller.searcher.open_calls[-1] is None
@@ -277,8 +284,6 @@ def test_open_search_page_switches_view_and_logs_scope(monkeypatch):
 def test_update_started_and_complete_toggle_all_states(monkeypatch):
     dashboard_module, actions = _import_dashboard_module(monkeypatch)
     controller = dashboard_module.DashboardController()
-    if hasattr(controller, "view") and "qtbot" in locals() and hasattr(qtbot, "addWidget"):
-        qtbot.addWidget(controller.view)
 
     controller._DashboardController__handle_update_started()
     assert controller.home.view.states[-1] == "UPDATING"
@@ -311,8 +316,6 @@ def test_update_started_and_complete_toggle_all_states(monkeypatch):
 def test_handle_data_updated_updates_children_and_catalogue_path(monkeypatch):
     dashboard_module, actions = _import_dashboard_module(monkeypatch)
     controller = dashboard_module.DashboardController()
-    if hasattr(controller, "view") and "qtbot" in locals() and hasattr(qtbot, "addWidget"):
-        qtbot.addWidget(controller.view)
 
     data = types.SimpleNamespace(snapshots=["s1", "s2", "s3"])
     controller._DashboardController__handle_data_updated(data)
@@ -323,6 +326,27 @@ def test_handle_data_updated_updates_children_and_catalogue_path(monkeypatch):
     assert controller.catalogue.update_data_calls[0].snapshot_list == ["s1", "s2", "s3"]
     assert controller.searcher.open_calls[-1] is None
     assert controller.history.reload_count == 1
-    assert controller.model.snap_catalogue.path_catalogue == Path("/tmp/snappy-catalogue")
+    assert controller.model.snap_catalogue.path_catalogue is None
     assert ("Dashboard", "dashboard.data.loaded", "snapshots=3") in actions
 
+
+
+def test_shared_operation_state_disables_mutations_but_keeps_search_stop_accessible(monkeypatch):
+    module, _ = _import_dashboard_module(monkeypatch)
+    controller = module.DashboardController()
+    state = controller.model.operations
+    lease = state.try_acquire(controller.searcher.model)
+    controller._DashboardController__handle_operation_active_changed(True)
+    assert not controller.settings.view.enabled
+    assert not controller.catalogue.view.enabled
+    assert not controller.backup.view.enabled
+    assert controller.searcher.view.enabled
+    lease.release()
+    controller._DashboardController__handle_operation_active_changed(False)
+    assert controller.settings.view.enabled
+    assert controller.catalogue.view.enabled
+    assert controller.backup.view.enabled
+    lease = state.try_acquire(controller.model)
+    controller._DashboardController__handle_operation_active_changed(True)
+    assert not controller.searcher.view.enabled
+    lease.release()

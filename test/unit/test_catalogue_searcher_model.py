@@ -197,6 +197,8 @@ def test_catalogue_searcher_model(monkeypatch):
     
     # stop
     model.stop_search()
+    assert model.is_search_active
+    assert model.operations.operation_active
     
     # Fake callbacks
     op_status = searcher_module.OperationStatus("Done")
@@ -236,7 +238,7 @@ def test_catalogue_searcher_model(monkeypatch):
         
     res = SnapshotSearchResult(snapshot_name="S2", file_path=Path("path"), searched_text="abc")
     model.runner._all_operations = [FakeOp(True, False, [[res]])]
-    model.on_runner_finished(None)
+    model.on_runner_finished(types.SimpleNamespace(has_ops_failed=lambda: False))
     assert model.tree_model_manager.model.rowCount() == 1
     
     # Operation finished

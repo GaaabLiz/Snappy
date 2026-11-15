@@ -180,8 +180,28 @@ def test_setting_controller(monkeypatch, tmp_path):
             self.deleted_paths.append(path)
             path.unlink()
     class FakeDash:
-        def __init__(self): self.snap_catalogue = FakeCat()
-        def update(self): pass
+        def __init__(self):
+            from snappy.model.operation import OperationState
+            self.operations = OperationState()
+            self.snap_catalogue = FakeCat()
+        @property
+        def operation_active(self): return self.operations.operation_active
+        def update(self, *, before_update=None):
+            lease = self.operations.try_acquire(self)
+            if lease is None: return False
+            with lease:
+                if before_update: before_update()
+            return True
+        def run_heavy_operation(self, _name, _desc, func, on_success=None):
+            lease = self.operations.try_acquire(self)
+            if lease is None: return False
+            with lease:
+                try:
+                    result = func(None)
+                    if on_success: on_success(result)
+                except Exception as error:
+                    msgs.append(str(error))
+            return True
     dash_mod.DashboardModel = FakeDash
     monkeypatch.setitem(sys.modules, "snappy.model.dashboard", dash_mod)
     

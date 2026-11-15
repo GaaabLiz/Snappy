@@ -1,27 +1,27 @@
 from pathlib import Path
 
-from PySide6.QtCore import QObject, Signal
 from loguru import logger
 from pylizlib.core.os.snap.domain import BackupType
+from PySide6.QtCore import QObject, Signal
 
-from snappy.application.app import app_settings, AppSettings, snap_settings
-from snappy.model.history import log_action, ActionCategory, ActionType
+from snappy.application.app import AppSettings, app_settings, snap_settings
+from snappy.application.i18n import tr
+from snappy.model.history import ActionCategory, ActionType, log_action
 
 
 class SettingModel(QObject):
     """
     Model for application settings.
-    
-    Handles business logic related to changing configuration paths, 
-    clearing backups, and synchronizing global state. 
+
+    Handles business logic related to changing configuration paths,
+    clearing backups, and synchronizing global state.
     It communicates with the Controller exclusively via Signals.
     """
-    
+
     # Signals
     catalogue_path_updated = Signal(str)
     backup_path_updated = Signal(str)
     backup_cleared = Signal(int, str)  # (deleted_count, backup_path)
-    cleanup_failed = Signal(str)
     settings_synchronized = Signal()
 
     def __init__(self, dash_model, parent=None):
@@ -34,49 +34,58 @@ class SettingModel(QObject):
         """
         super().__init__(parent)
         self.dash_model = dash_model
-        
+
         # Connect AppSettings changes to the synchronization method
         AppSettings.backup_path.valueChanged.connect(self.sync_snap_settings)
         AppSettings.backup_before_install.valueChanged.connect(self.sync_snap_settings)
         AppSettings.backup_before_edit.valueChanged.connect(self.sync_snap_settings)
         AppSettings.backup_before_delete.valueChanged.connect(self.sync_snap_settings)
 
-    def set_catalogue_path(self, directory: str):
+    def set_catalogue_path(self, directory: str) -> bool:
         """
         Updates the global catalogue path and logs the action.
 
         Args:
             directory (str): The new catalogue directory path.
         """
-        logger.info(f"Catalogue path changed to: {directory}")
-        app_settings.set(AppSettings.catalogue_path, Path(directory))
-        self.dash_model.snap_catalogue.set_catalogue_path(Path(directory))
-        log_action(ActionCategory.SETTINGS, ActionType.SETTINGS_CATALOGUE_PATH_CHANGED, directory)
-        self.catalogue_path_updated.emit(directory)
-        
-        # We also trigger a dashboard update since the catalogue path changed
-        self.dash_model.update()
 
-    def set_backup_path(self, directory: str):
+        def apply_path():
+            logger.info(f"Catalogue path changed to: {directory}")
+            self.dash_model.snap_catalogue.set_catalogue_path(Path(directory))
+            app_settings.set(AppSettings.catalogue_path, Path(directory))
+            log_action(
+                ActionCategory.SETTINGS, ActionType.SETTINGS_CATALOGUE_PATH_CHANGED, directory
+            )
+            self.catalogue_path_updated.emit(directory)
+
+        return self.dash_model.update(before_update=apply_path)
+
+    def set_backup_path(self, directory: str) -> bool:
         """
         Updates the global backup path and synchronizes snapshot settings.
 
         Args:
             directory (str): The new backup directory path.
         """
-        logger.info(f"Backup path changed to: {directory}")
-        backup_path = Path(directory)
-        app_settings.set(AppSettings.backup_path, backup_path)
-        snap_settings.backup_path = backup_path
-        log_action(ActionCategory.SETTINGS, ActionType.SETTINGS_BACKUP_PATH_CHANGED, directory)
-        self.backup_path_updated.emit(directory)
+        lease = self.dash_model.operations.try_acquire(self)
+        if lease is None:
+            return False
+        with lease:
+            logger.info(f"Backup path changed to: {directory}")
+            backup_path = Path(directory)
+            app_settings.set(AppSettings.backup_path, backup_path)
+            snap_settings.backup_path = backup_path
+            log_action(ActionCategory.SETTINGS, ActionType.SETTINGS_BACKUP_PATH_CHANGED, directory)
+            self.backup_path_updated.emit(directory)
+        return True
 
-    def clear_backup_directory(self):
+    def clear_backup_directory(self) -> bool:
         """
         Deletes all application-managed backups from the configured backup directory.
         Preserves other unmanaged files. Emits success or failure signals.
         """
-        try:
+
+        def action(_task):
             backup_path = Path(app_settings.get(AppSettings.backup_path))
             deleted_count = 0
 
@@ -94,13 +103,24 @@ class SettingModel(QObject):
                     self.dash_model.snap_catalogue.delete_backup(backup.path)
                     deleted_count += 1
 
-            logger.info("Backup directory cleanup completed: {} file(s) deleted from {}", deleted_count, backup_path)
-            log_action(ActionCategory.SETTINGS, ActionType.SETTINGS_BACKUP_CLEANED, f"path={backup_path}; deleted={deleted_count}")
-            self.backup_cleared.emit(deleted_count, str(backup_path))
-            
-        except (OSError, ValueError) as e:
-            logger.error(f"Error during backup folder cleanup: {str(e)}")
-            self.cleanup_failed.emit(str(e))
+            logger.info(
+                "Backup directory cleanup completed: {} file(s) deleted from {}",
+                deleted_count,
+                backup_path,
+            )
+            log_action(
+                ActionCategory.SETTINGS,
+                ActionType.SETTINGS_BACKUP_CLEANED,
+                f"path={backup_path}; deleted={deleted_count}",
+            )
+            return deleted_count, str(backup_path)
+
+        return self.dash_model.run_heavy_operation(
+            tr("Backup folder cleanup"),
+            tr("Backup folder cleanup"),
+            action,
+            on_success=lambda result: self.backup_cleared.emit(*result),
+        )
 
     def sync_snap_settings(self, *args, **kwargs):
         """
@@ -117,4 +137,6 @@ class SettingModel(QObject):
         Logs that the user confirmed the application restart due to theme/language change.
         """
         logger.info("User confirmed restart for language/theme change")
-        log_action(ActionCategory.SETTINGS, ActionType.SETTINGS_RESTART_CONFIRMED, "theme/language change")
+        log_action(
+            ActionCategory.SETTINGS, ActionType.SETTINGS_RESTART_CONFIRMED, "theme/language change"
+        )

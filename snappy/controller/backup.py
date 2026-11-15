@@ -1,17 +1,16 @@
 from pathlib import Path
 
-from PySide6.QtCore import Signal, QObject, QUrl
-from PySide6.QtGui import QDesktopServices
 from loguru import logger
-from pylizlib.core.os.snap import SnapshotCatalogue
 from pylizlib.core.os.snap.domain import SnapshotBackupInfo
-from pylizlib.qtfw.util.ui import UiUtils
+from PySide6.QtCore import QObject, QUrl
+from PySide6.QtGui import QDesktopServices
 from qfluentwidgets import MessageBox
 
-from snappy.application.app import app_settings, AppSettings
-from snappy.model.history import log_action, ActionCategory, ActionType
+from snappy.application.app import AppSettings, app_settings
 from snappy.application.i18n import tr
 from snappy.model.backup import BackupModel
+from snappy.model.dashboard import DashboardModel
+from snappy.model.history import ActionCategory, ActionType, log_action
 from snappy.view.backup import BackupView
 
 
@@ -23,18 +22,16 @@ class BackupController(QObject):
     interacting with the SnapshotCatalogue and communicating with the UI view.
     """
 
-    signal_request_refresh = Signal()
-
-    def __init__(self, snap_catalogue: SnapshotCatalogue):
+    def __init__(self, dash_model: DashboardModel):
         """
         Initializes the BackupController.
 
         Args:
-            snap_catalogue (SnapshotCatalogue): The system catalogue manager used to
-                interact with snapshots and backups.
+            dash_model: Shared catalogue and exclusive background operation launcher.
         """
         super().__init__()
-        self.snap_catalogue = snap_catalogue
+        self.dash_model = dash_model
+        self.snap_catalogue = dash_model.snap_catalogue
         self.model = BackupModel()
         self.view = BackupView(self.model)
 
@@ -79,24 +76,26 @@ class BackupController(QObject):
         Args:
             backup (SnapshotBackupInfo): Information about the backup to restore.
         """
+        if self.dash_model.operation_active:
+            return
         w = MessageBox(
             tr("Confirm Restore"),
             tr("Are you sure you want to restore this backup? This will overwrite current data."),
-            parent=self.view
+            parent=self.view,
         )
         if not w.exec_():
             logger.debug("Backup restore cancelled by user.")
             return
-        try:
-            logger.info(f"Restoring backup {backup.file_name}...")
+
+        def action(_task):
             self.snap_catalogue.restore_backup(backup.path)
             log_action(ActionCategory.BACKUPS, ActionType.BACKUP_RESTORED, backup.file_name)
-            self.update_data()
-            self.signal_request_refresh.emit()
-            logger.info("Backup restored successfully.")
-        except Exception as e:
-            logger.error(f"Error restoring backup: {e}")
-            UiUtils.show_message(tr("Error"), tr("An error occurred during restore: {error}", error=str(e)))
+
+        self.dash_model.run_heavy_operation(
+            tr("Restore backup"),
+            tr("Restoring backup..."),
+            action,
+        )
 
     def __handle_delete(self, backup: SnapshotBackupInfo):
         """
@@ -105,20 +104,23 @@ class BackupController(QObject):
         Args:
             backup (SnapshotBackupInfo): Information about the backup to delete.
         """
+        if self.dash_model.operation_active:
+            return
         w = MessageBox(
             tr("Confirm Delete"),
             tr("Are you sure you want to delete this backup? This action cannot be undone."),
-            parent=self.view
+            parent=self.view,
         )
         if not w.exec_():
             logger.debug("Backup deletion cancelled by user.")
             return
-        try:
-            logger.info(f"Deleting backup {backup.file_name}...")
+
+        def action(_task):
             self.snap_catalogue.delete_backup(backup.path)
             log_action(ActionCategory.BACKUPS, ActionType.BACKUP_DELETED, backup.file_name)
-            self.update_data()
-            logger.info("Backup deletion completed.")
-        except Exception as e:
-            logger.error(f"Error deleting backup: {e}")
-            UiUtils.show_message(tr("Error"), tr("An error occurred during deletion: {error}", error=str(e)))
+
+        self.dash_model.run_heavy_operation(
+            tr("Delete backup"),
+            tr("Deleting backup..."),
+            action,
+        )

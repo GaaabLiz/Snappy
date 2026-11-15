@@ -1,6 +1,8 @@
 import sys
 import types
 
+from snappy.model.operation import OperationState
+
 
 def _import_dashboard_model_module(monkeypatch):
     logs = {"info": [], "debug": [], "error": []}
@@ -29,7 +31,7 @@ def _import_dashboard_model_module(monkeypatch):
             return self._results[task_id]
 
     class FakeOperationInfo:
-        def __init__(self, name, description, delay_each_task):
+        def __init__(self, name, description, delay_each_task=0):
             self.name = name
             self.description = description
             self.delay_each_task = delay_each_task
@@ -180,6 +182,7 @@ def _import_dashboard_model_module(monkeypatch):
 def test_update_builds_operation_and_starts_runner(monkeypatch):
     dashboard_model_module, _logs = _import_dashboard_model_module(monkeypatch)
     model = dashboard_model_module.DashboardModel()
+    assert isinstance(model.operations, OperationState)
 
     model.update()
 
@@ -284,7 +287,6 @@ def test_dashboard_model_run_heavy_operation_success_update(monkeypatch):
         def __init__(self, *args, **kwargs): pass
     dashboard_model_module.OperationInfo = FakeOperationInfo2
 
-    model.update = lambda: setattr(model, "updated", True)
     
     success_msgs = []
     model.signal_on_heavy_operation_success.connect(lambda title, msg: success_msgs.append((title, msg)))
@@ -301,7 +303,8 @@ def test_dashboard_model_run_heavy_operation_success_update(monkeypatch):
     runner.runner_finish.emit(FakeStats())
     
     assert success_msgs[-1] == ("Success", "Did it")
-    assert getattr(model, "updated", False)
+    assert model.runner.start_count == 1
+    assert model.operation_active
 
 def test_dashboard_model_run_heavy_operation_fail(monkeypatch):
     dashboard_model_module, logs = _import_dashboard_model_module(monkeypatch)

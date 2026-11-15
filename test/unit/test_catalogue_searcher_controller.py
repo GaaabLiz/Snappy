@@ -86,15 +86,18 @@ def test_catalogue_searcher_controller(monkeypatch):
     class FakeCat:
         def get_all(self): return []
     class FakeModel:
-        def __init__(self, cat):
+        def __init__(self, cat, operations=None):
+            self.is_search_active = False
             self.table_model = FakeTM()
             self.tree_model_manager = FakeTreeMan()
             self.signal_search_finished = FakeSignal()
             self.signal_status_card_update = FakeSignal()
             self.catalogue = FakeCat()
-        def search(self, t, q, s, e): pass
+        def search(self, t, q, s, e):
+            self.is_search_active = True
+            return True
         def stop_search(self): pass
-        def load_snapshots_from_catalogue(self, s): pass
+        def load_snapshots_from_catalogue(self, s): return True
     model_mod.CatalogueSearcherModel = FakeModel
     model_mod.SearchResultsTreeModel = FakeTreeMan
     monkeypatch.setitem(sys.modules, "snappy.model.catalogue_searcher", model_mod)
@@ -143,11 +146,13 @@ def test_catalogue_searcher_controller(monkeypatch):
     # stop
     ctrl.view.action_stop.triggered.emit()
     assert actions[-1][1] == ActionType.SEARCH_STOPPED
-    assert ctrl.view.op_status is False
-    assert ctrl.view.action_start.enabled
+    assert ctrl.view.op_status is True
+    assert not ctrl.view.action_start.enabled
+    assert not ctrl.view.action_stop.enabled
     
     # finish
-    ctrl.model.signal_search_finished.emit()
+    ctrl.model.is_search_active = False
+    ctrl.model.signal_search_finished.emit([])
     assert actions[-1][1] == ActionType.SEARCH_COMPLETED
     
     # filter changed
