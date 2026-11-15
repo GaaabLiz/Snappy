@@ -2,6 +2,8 @@ import shutil
 import sys
 import types
 
+from pylizlib.core.os.snap import BackupType
+
 def test_home_controller(monkeypatch, tmp_path):
     # Mock view
     view_mod = types.ModuleType("snappy.view.home")
@@ -31,11 +33,29 @@ def test_home_controller(monkeypatch, tmp_path):
     app_mod.app_settings = AS()
     app_mod.PATH_BACKUPS = "/backups"
     monkeypatch.setitem(sys.modules, "snappy.application.app", app_mod)
+
+    class FakeCatalogue:
+        def list_backups(self, _backup_path):
+            return [
+                types.SimpleNamespace(
+                    is_export=False,
+                    backup_type=BackupType.SNAPSHOT_DIRECTORY,
+                    created_at=object(),
+                    snapshot_id="snapshot-1",
+                ),
+                types.SimpleNamespace(
+                    is_export=False,
+                    backup_type=BackupType.ASSOCIATED_DIRECTORIES,
+                    created_at=object(),
+                    snapshot_id="snapshot-2",
+                ),
+            ]
     
     sys.modules.pop("snappy.controller.home", None)
     from snappy.controller.home import HomeController
     
     ctrl = HomeController()
+    ctrl.set_catalogue(FakeCatalogue())
     
     class FakeStats: pass
     class FakeSnapData:

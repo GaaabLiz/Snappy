@@ -159,10 +159,10 @@ def _import_dashboard_module(monkeypatch):
     class FakeBackupController:
         def __init__(self, _model):
             self.view = FakePageView("Backup")
-            self.signal_request_refresh = FakeSignal()
+            self.update_data_calls = 0
 
         def update_data(self):
-            pass
+            self.update_data_calls += 1
 
     fake_action_history_module = types.ModuleType("snappy.model.history")
 
@@ -326,5 +326,6 @@ def test_handle_data_updated_updates_children_and_catalogue_path(monkeypatch):
     assert controller.catalogue.update_data_calls[0].snapshot_list == ["s1", "s2", "s3"]
     assert controller.searcher.open_calls[-1] is None
     assert controller.history.reload_count == 1
+    assert controller.backup.update_data_calls == 1
     assert controller.model.snap_catalogue.path_catalogue == Path("/tmp/snappy-catalogue")
     assert ("Dashboard", "dashboard.data.loaded", "snapshots=3") in actions

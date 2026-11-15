@@ -73,13 +73,7 @@ def test_setting_controller(monkeypatch, tmp_path):
         def getExistingDirectory(cls, *args): return cls.ret
     monkeypatch.setattr("PySide6.QtWidgets.QFileDialog", FakeQFileDialog)
     
-    # Mock UiUtils
-    import pylizlib.qtfw.util.ui
     msgs = []
-    class FakeUiUtils:
-        @classmethod
-        def show_message(cls, t, text): msgs.append(text)
-    monkeypatch.setattr(pylizlib.qtfw.util.ui, "UiUtils", FakeUiUtils)
     
     # Mock AboutMessageBox
     about_mod = types.ModuleType("pylizlib.qtfw.widgets.dialog.about")
@@ -155,16 +149,19 @@ def test_setting_controller(monkeypatch, tmp_path):
             self.list_error = None
             self.backups = [
                 types.SimpleNamespace(
+                    file_name=managed_backup.name,
                     path=managed_backup,
                     is_export=False,
                     backup_type=BackupType.SNAPSHOT_DIRECTORY,
                 ),
                 types.SimpleNamespace(
+                    file_name=exported_backup.name,
                     path=exported_backup,
                     is_export=True,
                     backup_type=BackupType.SNAPSHOT_DIRECTORY,
                 ),
                 types.SimpleNamespace(
+                    file_name=unknown_backup.name,
                     path=unknown_backup,
                     is_export=False,
                     backup_type=None,
@@ -179,9 +176,34 @@ def test_setting_controller(monkeypatch, tmp_path):
         def delete_backup(self, path):
             self.deleted_paths.append(path)
             path.unlink()
+    class FakeTask:
+        def update_task_message(self, message): pass
+        def update_task_progress(self, progress): pass
+
     class FakeDash:
-        operation_active = False
-        def __init__(self): self.snap_catalogue = FakeCat()
+        def __init__(self):
+            self.snap_catalogue = FakeCat()
+            self.operation_active = False
+            self.pending = []
+            self.rejected = 0
+
+        def run_heavy_operation(self, name, description, action, **options):
+            if self.operation_active:
+                self.rejected += 1
+                return False
+            self.operation_active = True
+            self.pending.append((action, options))
+            return True
+
+        def run_next_operation(self):
+            action, options = self.pending.pop(0)
+            try:
+                action(FakeTask())
+            except Exception as error:
+                msgs.append(options["error_msg_template"].format(error=str(error)))
+            finally:
+                self.operation_active = False
+
         def update(self): pass
     dash_mod.DashboardModel = FakeDash
     monkeypatch.setitem(sys.modules, "snappy.model.dashboard", dash_mod)
@@ -217,13 +239,19 @@ def test_setting_controller(monkeypatch, tmp_path):
     previous_settings = dict(settings.values)
     assert ctrl.model.set_catalogue_path("/busy-catalogue") is False
     assert ctrl.model.set_backup_path("/busy-backups") is False
-    assert ctrl.model.clear_backup_directory() is False
+    ctrl.view.signal_clear_backups_request.emit()
+    assert dash.rejected == 1
+    assert dash.pending == []
     assert settings.values == previous_settings
     assert dash.snap_catalogue.deleted_paths == []
     dash.operation_active = False
 
     # clear backups
     ctrl.view.signal_clear_backups_request.emit()
+    assert dash.snap_catalogue.list_calls == []
+    assert dash.snap_catalogue.deleted_paths == []
+    assert dash.pending[0][1]["update_dashboard"] is True
+    dash.run_next_operation()
     assert actions[-1][1] == ActionType.SETTINGS_BACKUP_CLEANED
     assert actions[-1][2] == f"path={backup_dir}; deleted=1"
     assert dash.snap_catalogue.list_calls == [backup_dir]
@@ -263,6 +291,7 @@ def test_setting_controller(monkeypatch, tmp_path):
     FakeMessageBox.res = True
     dash.snap_catalogue.list_error = OSError("list fail")
     ctrl.view.signal_clear_backups_request.emit()
+    dash.run_next_operation()
     assert "list fail" in msgs[-1]
     assert not dash.operation_active
 
@@ -272,5 +301,6 @@ def test_setting_controller(monkeypatch, tmp_path):
     settings.values["b"] = missing_dir
     list_calls_before_missing = len(dash.snap_catalogue.list_calls)
     ctrl.view.signal_clear_backups_request.emit()
+    dash.run_next_operation()
     assert len(dash.snap_catalogue.list_calls) == list_calls_before_missing
     assert actions[-1][2] == f"path={missing_dir}; deleted=0"

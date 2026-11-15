@@ -12,13 +12,7 @@ def test_backup_controller(monkeypatch):
     def fake_log(c, t, d): actions.append((c, t, d))
     monkeypatch.setattr(hist_mod, "log_action", fake_log)
     
-    # Mock UiUtils
-    import pylizlib.qtfw.util.ui
     msgs = []
-    class FakeUiUtils:
-        @classmethod
-        def show_message(cls, t, m): msgs.append(m)
-    monkeypatch.setattr(pylizlib.qtfw.util.ui, "UiUtils", FakeUiUtils)
     
     # Mock app_settings
     app_mod = types.ModuleType("snappy.application.app")
@@ -52,13 +46,59 @@ def test_backup_controller(monkeypatch):
         def get_all_backups(self, p): return []
     model_mod.BackupModel = FakeModel
     monkeypatch.setitem(sys.modules, "snappy.model.backup", model_mod)
+
+    dashboard_mod = types.ModuleType("snappy.model.dashboard")
+    dashboard_mod.DashboardModel = type("DashboardModel", (), {})
+    monkeypatch.setitem(sys.modules, "snappy.model.dashboard", dashboard_mod)
     
     # Fake catalogue
     class FakeCat:
+        def __init__(self):
+            self.restore_calls = []
+            self.delete_calls = []
+
         def restore_backup(self, p):
+            self.restore_calls.append(p)
             if "error" in str(p): raise Exception("fail restore")
         def delete_backup(self, p):
+            self.delete_calls.append(p)
             if "error" in str(p): raise Exception("fail delete")
+
+    class FakeTask:
+        def update_task_message(self, message):
+            pass
+
+        def update_task_progress(self, progress):
+            pass
+
+    class FakeDash:
+        def __init__(self, catalogue):
+            self.snap_catalogue = catalogue
+            self.operation_active = False
+            self.pending = []
+            self.refreshes = 0
+            self.rejected = 0
+
+        def run_heavy_operation(self, name, description, action, **options):
+            if self.operation_active:
+                self.rejected += 1
+                return False
+            self.operation_active = True
+            self.pending.append((name, description, action, options))
+            return True
+
+        def finish_next(self):
+            name, description, action, options = self.pending.pop(0)
+            try:
+                action(FakeTask())
+            except Exception as error:
+                msgs.append(options["error_msg_template"].format(error=str(error)))
+            else:
+                if options["update_dashboard"]:
+                    self.refreshes += 1
+            finally:
+                self.operation_active = False
+            return name, description, options
             
     # Mock QDesktopServices
     opened = []
@@ -81,15 +121,12 @@ def test_backup_controller(monkeypatch):
     monkeypatch.setattr("snappy.controller.backup.MessageBox", FakeMessageBox)
     
     cat = FakeCat()
-    dash = types.SimpleNamespace(snap_catalogue=cat, operation_active=False)
+    dash = FakeDash(cat)
     ctrl = BackupController(dash)
     
     # update_data
     ctrl.update_data()
     assert ctrl.view.reloaded
-    
-    refreshes = []
-    ctrl.signal_request_refresh.connect(lambda: refreshes.append(1))
     
     # test __handle_open
     b1 = SnapshotBackupInfo(file_name="f1", path=Path("/a/b/f1"), snapshot_id=None, backup_type=None, created_at=None, prefix="", is_export=False)
@@ -99,35 +136,46 @@ def test_backup_controller(monkeypatch):
     
     # test __handle_restore
     ctrl.view.signal_restore_requested.emit(b1)
-    assert len(refreshes) == 1
+    assert cat.restore_calls == []
+    name, _, options = dash.finish_next()
+    assert name == "Restore backup"
+    assert options["update_dashboard"] is True
+    assert cat.restore_calls == [b1.path]
     assert actions[-1][1] == hist_mod.ActionType.BACKUP_RESTORED
     
     # test __handle_delete
     ctrl.view.signal_delete_requested.emit(b1)
-    assert len(refreshes) == 1
+    assert cat.delete_calls == []
+    name, _, options = dash.finish_next()
+    assert name == "Delete backup"
+    assert options["update_dashboard"] is True
+    assert cat.delete_calls == [b1.path]
     assert actions[-1][1] == hist_mod.ActionType.BACKUP_DELETED
+    assert dash.refreshes == 2
     
     # test MessageBox cancel
     FakeMessageBox.res = False
     ctrl.view.signal_restore_requested.emit(b1)
-    assert len(refreshes) == 1 # no change
     ctrl.view.signal_delete_requested.emit(b1)
-    assert len(refreshes) == 1 # no change
+    assert dash.pending == []
     
     dash.operation_active = True
     FakeMessageBox.res = True
     ctrl.view.signal_restore_requested.emit(b1)
     ctrl.view.signal_delete_requested.emit(b1)
-    assert len(refreshes) == 1
+    assert dash.rejected == 2
+    assert dash.pending == []
     dash.operation_active = False
 
     # test exceptions
     FakeMessageBox.res = True
     b_err = SnapshotBackupInfo(file_name="error", path=Path("/a/b/error"), snapshot_id=None, backup_type=None, created_at=None, prefix="", is_export=False)
     ctrl.view.signal_restore_requested.emit(b_err)
+    dash.finish_next()
     assert "fail restore" in msgs[-1]
     
     ctrl.view.signal_delete_requested.emit(b_err)
+    dash.finish_next()
     assert "fail delete" in msgs[-1]
     assert not dash.operation_active
     
