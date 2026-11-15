@@ -1,4 +1,5 @@
 import sqlite3
+from contextlib import closing
 from enum import Enum
 from pathlib import Path
 
@@ -80,19 +81,20 @@ def init_action_history_db():
     """
     Initializes the action history database by creating the required table if it does not exist.
     """
-    with _get_connection() as conn:
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS action_history (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
-                screen_key TEXT NOT NULL,
-                action_key TEXT NOT NULL,
-                details TEXT NOT NULL DEFAULT ''
+    with closing(_get_connection()) as conn:
+        with conn:
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS action_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+                    screen_key TEXT NOT NULL,
+                    action_key TEXT NOT NULL,
+                    details TEXT NOT NULL DEFAULT ''
+                )
+                """
             )
-            """
-        )
-        conn.commit()
+            conn.commit()
 
 
 def log_action(screen_key: ActionCategory | str, action_key: ActionType | str, details: str = ""):
@@ -105,12 +107,13 @@ def log_action(screen_key: ActionCategory | str, action_key: ActionType | str, d
         details (str, optional): Additional details about the action. Defaults to an empty string.
     """
     try:
-        with _get_connection() as conn:
-            conn.execute(
-                "INSERT INTO action_history (screen_key, action_key, details) VALUES (?, ?, ?)",
-                ((screen_key.value if isinstance(screen_key, ActionCategory) else screen_key), (action_key.value if isinstance(action_key, ActionType) else action_key), details),
-            )
-            conn.commit()
+        with closing(_get_connection()) as conn:
+            with conn:
+                conn.execute(
+                    "INSERT INTO action_history (screen_key, action_key, details) VALUES (?, ?, ?)",
+                    ((screen_key.value if isinstance(screen_key, ActionCategory) else screen_key), (action_key.value if isinstance(action_key, ActionType) else action_key), details),
+                )
+                conn.commit()
     except (sqlite3.Error, OSError) as error:
         logger.warning("Unable to record action {} / {}: {}", screen_key, action_key, error)
 
@@ -122,7 +125,7 @@ def list_actions() -> list[dict[str, str]]:
     Returns:
         list[dict[str, str]]: A list of dictionaries representing the logged actions, sorted by most recent first.
     """
-    with _get_connection() as conn:
+    with closing(_get_connection()) as conn:
         rows = conn.execute(
             "SELECT created_at, screen_key, action_key, details FROM action_history ORDER BY id DESC"
         ).fetchall()
