@@ -6,7 +6,7 @@ from loguru import logger
 from loguru_logging_intercept import setup_loguru_logging_intercept
 from pylizlib.core.app.pylizapp import PylizApp
 from pylizlib.core.os.snap import SnapshotSettings
-from pylizlib.core.os.utils import PATH_DEFAULT_GIT_BASH
+from pylizlib.core.os.windows.commands import PATH_DEFAULT_GIT_BASH
 from pylizlib.qtfw.domain.setting import QtFwQConfigItem
 from pylizlib.qtfw.model.qconfig import TextListValidator, ExecutableValidator
 from qfluentwidgets import QConfig, BoolValidator, qconfig, FolderValidator, OptionsValidator, OptionsConfigItem, ConfigValidator

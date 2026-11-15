@@ -2,7 +2,8 @@ from pathlib import Path
 
 from loguru import logger
 from pylizlib.core.os.snap import SnapshotCatalogue
-from pylizlib.core.os.utils import is_software_installed, WindowsOsUtils
+from pylizlib.core.os.commands import is_software_installed
+from pylizlib.core.os.windows.processes import WindowsOsUtils
 from pylizlib.qt.handler.operation_core import Task
 from pylizlib.qtfw.domain.sw import SoftwareData
 from qfluentwidgets import FluentIcon

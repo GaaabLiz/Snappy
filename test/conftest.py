@@ -25,6 +25,17 @@ def pytest_unconfigure(config):
     if temp_home and os.path.exists(temp_home):
         shutil.rmtree(temp_home, ignore_errors=True)
 
+def pytest_runtest_call(item):
+    """Skip native-window E2E tests when macOS has no usable WindowServer."""
+    if sys.platform != "darwin" or item.path.parent.name != "e2e":
+        return
+
+    from PySide6.QtWidgets import QApplication
+
+    app = QApplication.instance()
+    if app and (app.platformName() != "cocoa" or not app.screens()):
+        pytest.skip("E2E GUI tests require a native macOS screen; this test environment is headless.")
+
 @pytest.fixture
 def fresh_import():
     """Importa un modulo forzando reload e cache pulita."""

@@ -55,12 +55,8 @@ def test_catalogue_controller(monkeypatch):
     class FakeApp: path = Path("/app")
     monkeypatch.setattr(snappy.application.app, "app", FakeApp())
     
-    # Mock pylizlib core Utils for open_system_folder
-    import pylizlib.core.os.utils
     opened = []
-    def fake_open(p): opened.append(p)
-    pylizlib.core.os.utils.open_system_folder = fake_open
-    
+
     import PySide6.QtGui
     class FakeQDS:
         @classmethod
