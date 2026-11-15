@@ -541,6 +541,10 @@ class CatalogueSearcherModel(QObject):
                 if not failures:
                     error = statistics.get_first_error()
                     failures.append((tr("Unknown snapshot"), str(error) if error else tr("No error details available.")))
+        except Exception as error:
+            logger.exception("Failed to assemble search results.")
+            cause = str(error).strip() or tr("No error details available.")
+            failures.append((tr("Unknown snapshot"), cause))
 
         finally:
             self._search_active = False
