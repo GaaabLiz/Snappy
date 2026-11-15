@@ -90,6 +90,7 @@ class SearchResultsTableModel(QAbstractTableModel):
         self._data = new_data
         self._progress_data.clear()
         self._status_data.clear()
+        self._results_count_data.clear()
         self.endResetModel()
 
     def remove_snapshot(self, row: int):
@@ -352,7 +353,15 @@ class CatalogueSearcherModel(QObject):
                 snapshots = [snapshot_or_snapshots]
         else:
             snapshots = self.catalogue.get_all()
+
+        self.runner.clear()
+        self._op_id_to_snap_id.clear()
+        self.tree_model_manager.clear()
         self.table_model.update_data(snapshots)
+        self._current_message = tr("Waiting...")
+        self._current_progress = 0
+        self._current_eta = "--:--"
+        self._emit_status_card_update()
         return True
 
     def search(self, text: str, query_type: QueryType, search_target: SearchTarget, extensions: list[str]) -> bool:
