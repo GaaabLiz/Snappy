@@ -208,7 +208,10 @@ class CatalogueModel:
             data.desc = raw_data["desc"]
             data.tags = raw_data["tags"]
             data.directories = assoc
-            data.data = raw_data["custom_data"]
+            # Keep existing custom values whose fields are no longer configured.
+            custom_data = dict(old_snapshot.data or {})
+            custom_data.update(raw_data["custom_data"])
+            data.data = custom_data
             return data
         else:
             return Snapshot(
