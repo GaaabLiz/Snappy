@@ -239,12 +239,27 @@ def test_on_runner_finished_failure_logs_and_does_not_emit_data(monkeypatch):
 
     received = []
     model.signal_on_updated_data_available.connect(lambda data: received.append(data))
+    errors = []
+    events = []
+    model.signal_on_update_complete.connect(lambda: events.append("complete"))
+    model.signal_on_heavy_operation_error.connect(
+        lambda title, message: (errors.append((title, message)), events.append("error"))
+    )
 
+    model.update()
     model.on_runner_finished(stats)
 
     assert received == []
     assert model.get_cached_data() is None
     assert any("fatal" in msg for msg in logs["error"])
+    assert errors == [
+        (
+            "Update error",
+            "Dashboard refresh failed. The displayed data may be outdated. Error: fatal",
+        )
+    ]
+    assert events == ["complete", "error"]
+    assert not model.operation_active
 
 
 def test_update_logs_error_if_runner_add_raises(monkeypatch):
@@ -255,11 +270,14 @@ def test_update_logs_error_if_runner_add_raises(monkeypatch):
         raise RuntimeError("cannot add")
 
     model.runner.add = raise_on_add
+    errors = []
+    model.signal_on_heavy_operation_error.connect(lambda title, message: errors.append((title, message)))
 
     model.update()
 
     assert model.runner.start_count == 0
     assert any("cannot add" in msg for msg in logs["error"])
+    assert "cannot add" in errors[-1][1]
     assert not model.operation_active
 
 def test_dashboard_model_on_runner_stopped(monkeypatch):

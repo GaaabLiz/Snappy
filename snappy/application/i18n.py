@@ -117,6 +117,12 @@ _translations: dict[str, dict[str, str]] = {
     'Are you sure you want to update the associated folders of the selected snapshot with the currently installed ones?': {'it': 'Sei sicuro di voler aggiornare le cartelle associate allo snapshot selezionato con quelle attualmente installate nel sistema ?'},
     'Update error': {'it': 'Errore di aggiornamento'},
     'An error occurred during update: {error}': {'it': "Si è verificato un errore durante l'aggiornamento: {error}"},
+    'Dashboard refresh failed. The displayed data may be outdated. Error: {error}': {
+        'it': (
+            'Aggiornamento della dashboard non riuscito. '
+            'I dati visualizzati potrebbero essere obsoleti. Errore: {error}'
+        )
+    },
     'The folder no longer exists in {path}': {'it': 'La cartella non esiste più in {path}'},
     'Catalogue Search': {'it': 'Ricerca nel Catalogo'},
     'Snapshot': {'it': 'Snapshot'},

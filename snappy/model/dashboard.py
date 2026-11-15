@@ -181,7 +181,18 @@ class DashboardModel(QObject):
             self.operation_active = False
             self.signal_on_update_complete.emit()
             logger.error(f"Error launching update: {e}")
+            self.__report_update_error(e)
             return False
+
+    def __report_update_error(self, error: object):
+        """Notify the UI that the latest refresh failed and cached data may be stale."""
+        self.signal_on_heavy_operation_error.emit(
+            tr("Update error"),
+            tr(
+                "Dashboard refresh failed. The displayed data may be outdated. Error: {error}",
+                error=str(error),
+            ),
+        )
 
     def on_runner_started(self):
         """
@@ -207,11 +218,12 @@ class DashboardModel(QObject):
         Args:
             stats (RunnerStatistics): The statistics and results from the completed operation.
         """
+        error_to_report: object | None = None
         try:
             logger.info("Dashboard update completed.")
             if stats.has_ops_failed():
-                error = stats.get_first_error()
-                logger.error(f"Error during dashboard update: {error}")
+                error_to_report = stats.get_first_error()
+                logger.error(f"Error during dashboard update: {error_to_report}")
                 return
 
             if getattr(stats, "cancelled_operations", 0):
@@ -227,6 +239,11 @@ class DashboardModel(QObject):
             data.home_statistics = getattr(self.task_snap, "home_statistics", None)
             self.signal_on_updated_data_available.emit(data)
             self.cached_data = data
+        except Exception as error:
+            error_to_report = error
+            logger.error(f"Error processing dashboard update: {error}")
         finally:
             self.operation_active = False
             self.signal_on_update_complete.emit()
+            if error_to_report is not None:
+                self.__report_update_error(error_to_report)
