@@ -77,6 +77,7 @@ class SettingModel(QObject):
         snap_settings.backup_path = backup_path
         log_action(ActionCategory.SETTINGS, ActionType.SETTINGS_BACKUP_PATH_CHANGED, directory)
         self.backup_path_updated.emit(directory)
+        self.dash_model.update()
 
     def clear_backup_directory(self, progress_callback=None, message_callback=None) -> int:
         """
