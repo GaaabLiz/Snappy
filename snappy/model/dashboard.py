@@ -194,5 +194,6 @@ class DashboardModel(QObject):
             snapshots=snapshots,
             monitored_software=op.get_task_result_by_id(self.task_monitored_soft.id),
         )
+        data.home_statistics = getattr(self.task_snap, "home_statistics", None)
         self.signal_on_updated_data_available.emit(data)
         self.cached_data = data

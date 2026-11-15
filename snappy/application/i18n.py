@@ -15,6 +15,7 @@ _translations: dict[str, dict[str, str]] = {
     'Total Folders': {'it': 'Cartelle Totali'},
     'Heaviest File': {'it': 'File più Pesante'},
     'No file found': {'it': 'Nessun file trovato'},
+    'Unavailable': {'it': 'Non disponibile'},
     'Catalogue': {'it': 'Catalogo'},
     'Import': {'it': 'Importa'},
     'Edit': {'it': 'Modifica'},

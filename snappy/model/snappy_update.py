@@ -67,6 +67,7 @@ class TaskGetSnapshots(Task):
         """
         super().__init__(tr("Retrieving saved snapshots"))
         self.catalogue = catalogue
+        self.home_statistics = None
 
     def execute(self):
         """
@@ -76,4 +77,11 @@ class TaskGetSnapshots(Task):
             list[Snapshot]: A list of all available snapshots in the catalogue.
         """
         logger.debug("Fetching saved snapshots...")
-        return self.catalogue.get_all()
+        snapshots = self.catalogue.get_all()
+        catalogue_path = getattr(self.catalogue, "path_catalogue", None)
+        if catalogue_path is not None:
+            from snappy.domain.data import SnappySnapshotData
+
+            snapshot_data = SnappySnapshotData(snapshot_list=snapshots)
+            self.home_statistics = snapshot_data.compute_home_statistics(catalogue_path)
+        return snapshots

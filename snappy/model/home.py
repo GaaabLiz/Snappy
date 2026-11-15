@@ -37,7 +37,9 @@ class HomeModel(QObject):
             snapshot_data (SnappySnapshotData): The snapshot data block to analyze.
         """
         logger.debug("Calculating Home statistics...")
-        stats = snapshot_data.compute_home_statistics()
+        stats = getattr(snapshot_data, "home_statistics", None)
+        if stats is None:
+            stats = snapshot_data.compute_home_statistics()
         logger.debug(f"Statistics calculated: {stats}")
 
         # Compute backup count

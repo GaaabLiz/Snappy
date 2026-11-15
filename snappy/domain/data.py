@@ -1,4 +1,7 @@
+import os
+import stat
 from dataclasses import dataclass
+from pathlib import Path
 
 from loguru import logger
 from pylizlib.core.data.unit import get_normalized_gb_mb_str
@@ -18,6 +21,7 @@ class HomeStatistics:
     total_size_bytes: int = 0
     total_files: int = 0
     total_dirs: int = 0
+    file_statistics_available: bool = False
     heaviest_file_path: str = ""
     heaviest_file_size: int = 0
     last_snapshot_date: str = ""
@@ -64,6 +68,7 @@ class SnappySnapshotData:
     properties and methods to compute aggregate metrics and statistics.
     """
     snapshot_list: list[Snapshot]
+    home_statistics: HomeStatistics | None = None
 
     @property
     def count(self) -> int:
@@ -88,21 +93,26 @@ class SnappySnapshotData:
             total_size_mb += config.get_assoc_dir_mb_size
         return get_normalized_gb_mb_str(int(total_size_mb * 1024 * 1024))
 
-    def compute_home_statistics(self) -> HomeStatistics:
+    def compute_home_statistics(self, catalogue_path: Path | None = None) -> HomeStatistics:
         """
         Compute and return home dashboard statistics based on the snapshot data.
-        
-        This method aggregates total sizes, tracks the oldest and newest snapshot 
-        dates, and calculates the average snapshot size. File-level statistics 
-        are skipped to optimize dashboard loading performance.
+
+        This method aggregates snapshot sizes and dates. When the catalogue path is
+        available, it also scans the stored snapshot folders to calculate file and
+        folder counts and the largest file.
         
         Returns:
             HomeStatistics: A populated HomeStatistics object with the calculated metrics.
         """
         logger.debug("Starting statistics calculation for Home...")
         stats = HomeStatistics(snapshot_count=self.count)
+        stats.file_statistics_available = catalogue_path is not None
+        scan_path = Path(catalogue_path) if catalogue_path is not None else None
         
         dates = []
+
+        if scan_path is not None:
+            from pylizlib.core.os.snap.utils import SnapshotUtils
 
         for snap in self.snapshot_list:
             if snap.date_created:
@@ -111,12 +121,49 @@ class SnappySnapshotData:
             # Optimize: use pre-calculated size from snapshot instead of scanning disk
             stats.total_size_bytes += int(snap.get_assoc_dir_mb_size * 1024 * 1024)
 
-        # File-level statistics are no longer computed to prevent slow dashboard loading
-        stats.heaviest_file_path = ""
-        stats.heaviest_file_size = 0
-        stats.total_files = 0
-        stats.total_dirs = 0
-        
+            if scan_path is None:
+                continue
+
+            try:
+                snapshot_path = SnapshotUtils.get_snapshot_path(snap.folder_name, scan_path)
+            except Exception as error:
+                logger.warning(f"Cannot locate snapshot '{snap.name}' while calculating Home statistics: {error}")
+                stats.file_statistics_available = False
+                continue
+
+            for association in snap.directories:
+                associated_path = snapshot_path / association.directory_name
+                if not associated_path.is_dir():
+                    logger.warning(f"Snapshot data directory is unavailable: {associated_path}")
+                    stats.file_statistics_available = False
+                    continue
+
+                # Include the associated folder itself, then each nested directory.
+                stats.total_dirs += 1
+
+                def on_walk_error(error: OSError):
+                    stats.file_statistics_available = False
+                    logger.warning(f"Cannot scan snapshot directory '{error.filename}': {error}")
+
+                for current_path, directories, filenames in os.walk(associated_path, onerror=on_walk_error):
+                    stats.total_dirs += len(directories)
+                    for filename in filenames:
+                        file_path = Path(current_path) / filename
+                        try:
+                            file_stat = file_path.stat()
+                            if not stat.S_ISREG(file_stat.st_mode):
+                                continue
+                        except OSError as error:
+                            stats.file_statistics_available = False
+                            logger.warning(f"Cannot read snapshot file '{file_path}': {error}")
+                            continue
+
+                        stats.total_files += 1
+                        file_size = file_stat.st_size
+                        if file_size > stats.heaviest_file_size or not stats.heaviest_file_path:
+                            stats.heaviest_file_size = file_size
+                            stats.heaviest_file_path = str(file_path)
+
         if dates:
             dates.sort()
             stats.oldest_snapshot_date = dates[0].strftime("%Y-%m-%d")
@@ -152,4 +199,5 @@ class SnappyData:
     monitored_software: list[SoftwareData] = None
     monitored_services: list[SoftwareData] = None
     snapshots: SnappySnapshotData = None
+    home_statistics: HomeStatistics | None = None
 

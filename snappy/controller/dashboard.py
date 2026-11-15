@@ -75,7 +75,8 @@ class DashboardController:
         """
         logger.debug("Updated dashboard data received in controller. Updating view...")
         logger.debug(data)
-        snap_data = SnappySnapshotData(snapshot_list=data.snapshots) # TODO: sistemare
+        snap_data = SnappySnapshotData(snapshot_list=data.snapshots)
+        snap_data.home_statistics = getattr(data, "home_statistics", None)
         self.cached_data = data
         self.catalogue.update_data(snap_data)
         self.home.update_data(snap_data)

@@ -180,15 +180,21 @@ class HomeView(SnappyQFrame):
         """
         self.card_snap_count.update_value(str(stats.snapshot_count))
         self.card_total_size.update_value(stats.total_size_str)
-        self.card_total_files.update_value(f"{stats.total_files:,}".replace(",", "."))
-        self.card_total_dirs.update_value(f"{stats.total_dirs:,}".replace(",", "."))
+        if stats.file_statistics_available:
+            self.card_total_files.update_value(f"{stats.total_files:,}".replace(",", "."))
+            self.card_total_dirs.update_value(f"{stats.total_dirs:,}".replace(",", "."))
+        else:
+            self.card_total_files.update_value("—")
+            self.card_total_dirs.update_value("—")
         self.card_backup_count.update_value(str(backup_count))
         self.card_catalogue_path.update_value(catalogue_path)
         self.card_last_snap_date.update_value(stats.last_snapshot_date)
         self.card_oldest_snap_date.update_value(stats.oldest_snapshot_date)
         self.card_avg_size.update_value(stats.average_snapshot_size_str)
 
-        if stats.heaviest_file_path:
+        if not stats.file_statistics_available:
+            self.card_heaviest_file.update_value("—", subtitle=tr("Unavailable"))
+        elif stats.heaviest_file_path:
             name = Path(stats.heaviest_file_path).name
             self.card_heaviest_file.update_value(
                 stats.heaviest_file_size_str,
