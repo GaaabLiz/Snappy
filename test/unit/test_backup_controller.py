@@ -81,22 +81,15 @@ def test_backup_controller(monkeypatch):
     monkeypatch.setattr("snappy.controller.backup.MessageBox", FakeMessageBox)
     
     cat = FakeCat()
-    class FakeDashboard:
-        operation_active = False
-        snap_catalogue = cat
-        def run_heavy_operation(self, _name, _desc, func):
-            try:
-                func(None)
-                refreshes.append(1)
-            except Exception as error:
-                msgs.append(str(error))
-    ctrl = BackupController(FakeDashboard())
+    dash = types.SimpleNamespace(snap_catalogue=cat, operation_active=False)
+    ctrl = BackupController(dash)
     
     # update_data
     ctrl.update_data()
     assert ctrl.view.reloaded
     
     refreshes = []
+    ctrl.signal_request_refresh.connect(lambda: refreshes.append(1))
     
     # test __handle_open
     b1 = SnapshotBackupInfo(file_name="f1", path=Path("/a/b/f1"), snapshot_id=None, backup_type=None, created_at=None, prefix="", is_export=False)
@@ -111,16 +104,23 @@ def test_backup_controller(monkeypatch):
     
     # test __handle_delete
     ctrl.view.signal_delete_requested.emit(b1)
-    assert len(refreshes) == 2
+    assert len(refreshes) == 1
     assert actions[-1][1] == hist_mod.ActionType.BACKUP_DELETED
     
     # test MessageBox cancel
     FakeMessageBox.res = False
     ctrl.view.signal_restore_requested.emit(b1)
-    assert len(refreshes) == 2 # no change
+    assert len(refreshes) == 1 # no change
     ctrl.view.signal_delete_requested.emit(b1)
-    assert len(refreshes) == 2 # no change
+    assert len(refreshes) == 1 # no change
     
+    dash.operation_active = True
+    FakeMessageBox.res = True
+    ctrl.view.signal_restore_requested.emit(b1)
+    ctrl.view.signal_delete_requested.emit(b1)
+    assert len(refreshes) == 1
+    dash.operation_active = False
+
     # test exceptions
     FakeMessageBox.res = True
     b_err = SnapshotBackupInfo(file_name="error", path=Path("/a/b/error"), snapshot_id=None, backup_type=None, created_at=None, prefix="", is_export=False)
@@ -129,6 +129,7 @@ def test_backup_controller(monkeypatch):
     
     ctrl.view.signal_delete_requested.emit(b_err)
     assert "fail delete" in msgs[-1]
+    assert not dash.operation_active
     
     # open exception
     def fake_openUrl_err(u): raise Exception("open error")

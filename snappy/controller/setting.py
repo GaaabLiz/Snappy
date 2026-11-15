@@ -5,6 +5,7 @@ from pathlib import Path
 from PySide6.QtCore import QProcess, QUrl
 from PySide6.QtGui import QIcon, QDesktopServices
 from PySide6.QtWidgets import QFileDialog, QApplication
+from pylizlib.qtfw.util.ui import UiUtils
 from pylizlib.qtfw.widgets.dialog.about import AboutMessageBox
 from qfluentwidgets import MessageBox
 
@@ -52,6 +53,7 @@ class SettingController:
         self.model.catalogue_path_updated.connect(self.__on_catalogue_path_updated)
         self.model.backup_path_updated.connect(self.__on_backup_path_updated)
         self.model.backup_cleared.connect(self.__on_backup_cleared)
+        self.model.cleanup_failed.connect(self.__on_cleanup_failed)
 
     def __on_catalogue_path_updated(self, directory: str):
         self.view.update_catalogue_path(directory)
@@ -63,16 +65,17 @@ class SettingController:
         # We could notify the user via UI, but for now we mirror the old logic which just logs it in the model
         pass
 
+    def __on_cleanup_failed(self, error_message: str):
+        UiUtils.show_message(tr("Error"), tr("An error occurred while cleaning the backup folder: {error}", error=error_message))
+
     def __on_language_or_theme_changed(self):
         """
         Handles language or theme changes by prompting the user to restart the application.
 
         If confirmed, it logs the restart and restarts the application programmatically.
         """
-        if self.dash_model.operation_active:
-            return
         w = MessageBox(tr("Restart required"), tr("The application needs to restart to apply the changes. Restart now?"), parent=self.view)
-        if w.exec_() and not self.dash_model.operation_active:
+        if w.exec_():
             self.model.log_restart_confirmed()
             args = sys.argv[:]
             args[0] = os.path.abspath(args[0])
@@ -95,8 +98,6 @@ class SettingController:
         Opens a directory selection dialog to choose a new backup path.
         Delegates the logic to the model.
         """
-        if self.dash_model.operation_active:
-            return
         directory = QFileDialog.getExistingDirectory(None, tr("Select the backup folder"))
         if directory:
             self.model.set_backup_path(directory)
@@ -114,8 +115,6 @@ class SettingController:
         Prompts the user for confirmation and then commands the model to delete 
         all application-managed backups.
         """
-        if self.dash_model.operation_active:
-            return
         w = MessageBox(
             tr("Backup folder cleanup"),
             tr(

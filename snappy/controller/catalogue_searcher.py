@@ -7,7 +7,6 @@ from PySide6.QtCore import QUrl
 from loguru import logger
 from pylizlib.core.os.snap import SnapshotCatalogue, Snapshot
 
-from snappy.model.operation import OperationState
 from snappy.model.history import log_action, ActionCategory, ActionType
 from snappy.model.catalogue_searcher import CatalogueSearcherModel, SearchResultsTreeModel
 from snappy.view.catalogue_searcher import CatalogueSearcherView, SnapshotResultsDialog
@@ -22,7 +21,7 @@ class CatalogueSearcherController:
     interactions from the view and invokes the corresponding actions in the model.
     """
 
-    def __init__(self, catalogue: SnapshotCatalogue, parent=None, *, operations: OperationState | None = None):
+    def __init__(self, catalogue: SnapshotCatalogue, parent=None, dash_model=None):
         """
         Initializes the CatalogueSearcherController.
 
@@ -31,7 +30,7 @@ class CatalogueSearcherController:
             parent (QWidget, optional): The parent widget. Defaults to None.
         """
         self.view = CatalogueSearcherView(parent)
-        self.model = CatalogueSearcherModel(catalogue, operations)
+        self.model = CatalogueSearcherModel(catalogue, dash_model)
 
         # Connect view and model
         self.view.setModel(self.model.table_model)
@@ -143,41 +142,37 @@ class CatalogueSearcherController:
             m.exec()
             return
 
+        self.view.set_operation_status(True)
         query_type = self.view.get_selected_query_type()
         search_target = self.view.get_selected_search_target()
         extensions = self.view.get_selected_extensions()
 
         # Toggle button states
-        self._set_search_ui_active(True)
+        self.view.action_start.setEnabled(False)
+        self.view.action_stop.setEnabled(True)
 
         logger.info(f"Starting search: text='{search_text}', type={query_type}, target={search_target}")
-        try:
-            started = self.model.search(search_text, query_type, search_target, extensions)
-        except Exception as error:
-            self._on_search_finished([(tr("Search"), str(error))])
-            return
-        if not started:
-            self._set_search_ui_active(False)
+        if not self.model.search(search_text, query_type, search_target, extensions):
+            self.view.set_operation_status(False)
+            self.view.action_start.setEnabled(True)
+            self.view.action_stop.setEnabled(False)
             return
 
         log_action(ActionCategory.SEARCH, ActionType.SEARCH_STARTED, f"query={search_text}")
-
-    def _set_search_ui_active(self, active: bool):
-        self.view.set_operation_status(active)
-        self.view.action_start.setEnabled(not active)
-        self.view.action_stop.setEnabled(active)
 
     def _stop_search(self):
         """Stops the search operation in the model and updates the UI state."""
         logger.info("Search interrupted by user")
         self.model.stop_search()
-        # Keep controls locked until runner_finish confirms all tasks have exited.
+        # Controls are restored by _on_search_finished once the worker has exited.
         self.view.action_stop.setEnabled(False)
         log_action(ActionCategory.SEARCH, ActionType.SEARCH_STOPPED, "")
 
     def _on_search_finished(self, failures: list[tuple[str, str]]):
         """Updates the UI and reports snapshot searches that failed."""
-        self._set_search_ui_active(False)
+        self.view.set_operation_status(False)
+        self.view.action_start.setEnabled(True)
+        self.view.action_stop.setEnabled(False)
 
         if not failures:
             logger.info("Search completed successfully")

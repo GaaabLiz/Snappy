@@ -1,8 +1,6 @@
 import sys
 import types
 
-from snappy.model.operation import OperationState
-
 
 def _import_dashboard_model_module(monkeypatch):
     logs = {"info": [], "debug": [], "error": []}
@@ -182,9 +180,11 @@ def _import_dashboard_model_module(monkeypatch):
 def test_update_builds_operation_and_starts_runner(monkeypatch):
     dashboard_model_module, _logs = _import_dashboard_model_module(monkeypatch)
     model = dashboard_model_module.DashboardModel()
-    assert isinstance(model.operations, OperationState)
 
     model.update()
+    assert model.operation_active
+    assert not model.update()
+    assert not model.run_heavy_operation("delete", "Deleting", lambda: None)
 
     assert model.runner.clear_count == 1
     assert len(model.runner.added_ops) == 1
@@ -218,7 +218,12 @@ def test_on_runner_finished_success_emits_data_and_caches(monkeypatch):
     received = []
     model.signal_on_updated_data_available.connect(lambda data: received.append(data))
 
+    model.update()
+    states = []
+    model.signal_on_updated_data_available.connect(lambda _data: states.append(model.operation_active))
+    model.signal_on_update_complete.connect(lambda: states.append(model.operation_active))
     model.on_runner_finished(stats)
+    assert states == [True, False]
 
     assert len(received) == 1
     assert received[0].snapshots == ["s1"]
@@ -255,6 +260,7 @@ def test_update_logs_error_if_runner_add_raises(monkeypatch):
 
     assert model.runner.start_count == 0
     assert any("cannot add" in msg for msg in logs["error"])
+    assert not model.operation_active
 
 def test_dashboard_model_on_runner_stopped(monkeypatch):
     """
@@ -262,7 +268,9 @@ def test_dashboard_model_on_runner_stopped(monkeypatch):
     """
     dashboard_model_module, logs = _import_dashboard_model_module(monkeypatch)
     model = dashboard_model_module.DashboardModel()
+    model.update()
     model.on_runner_stopped()
+    assert model.operation_active
     assert any("Dashboard update stopped." in msg for msg in logs["info"])
 
 def test_dashboard_model_run_heavy_operation_success_update(monkeypatch):
@@ -287,6 +295,8 @@ def test_dashboard_model_run_heavy_operation_success_update(monkeypatch):
         def __init__(self, *args, **kwargs): pass
     dashboard_model_module.OperationInfo = FakeOperationInfo2
 
+    completed = []
+    model.signal_on_update_complete.connect(lambda: completed.append(True))
     
     success_msgs = []
     model.signal_on_heavy_operation_success.connect(lambda title, msg: success_msgs.append((title, msg)))
@@ -305,6 +315,7 @@ def test_dashboard_model_run_heavy_operation_success_update(monkeypatch):
     assert success_msgs[-1] == ("Success", "Did it")
     assert model.runner.start_count == 1
     assert model.operation_active
+    assert completed == []
 
 def test_dashboard_model_run_heavy_operation_fail(monkeypatch):
     dashboard_model_module, logs = _import_dashboard_model_module(monkeypatch)
@@ -343,6 +354,7 @@ def test_dashboard_model_run_heavy_operation_fail(monkeypatch):
     runner.runner_finish.emit(FakeStats())
     
     assert error_msgs[-1] == ("Error", "An error occurred: Big Error")
+    assert not model.operation_active
 
 def test_dashboard_model_run_heavy_operation_success_no_update(monkeypatch):
     dashboard_model_module, logs = _import_dashboard_model_module(monkeypatch)
@@ -388,4 +400,24 @@ def test_dashboard_model_run_heavy_operation_success_no_update(monkeypatch):
     runner.runner_finish.emit(FakeStats())
     
     assert len(c) == 1
+    assert not model.operation_active
 
+
+
+def test_heavy_operation_blocks_refresh_and_recovers_from_launch_error(monkeypatch):
+    module, _ = _import_dashboard_model_module(monkeypatch)
+    model = module.DashboardModel()
+    assert model.run_heavy_operation("install", "Installing", lambda: None)
+    assert model.operation_active
+    assert not model.update()
+    assert not model.run_heavy_operation("delete", "Deleting", lambda: None)
+    model._heavy_runners[0].runner_finish.emit(module.RunnerStatistics(failed=True))
+    assert not model.operation_active
+
+    def fail_start():
+        raise RuntimeError("cannot launch")
+
+    monkeypatch.setattr(module.OperationRunner, "start", lambda self: fail_start())
+    assert not model.run_heavy_operation("delete", "Deleting", lambda: None)
+    assert not model.operation_active
+    assert model._heavy_runners == []

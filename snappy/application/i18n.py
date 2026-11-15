@@ -8,10 +8,6 @@ from snappy.application import app
 _current_language = "en"
 
 _translations: dict[str, dict[str, str]] = {
-    'Restore backup': {'it': 'Ripristina backup'},
-    'Restoring backup...': {'it': 'Ripristino backup...'},
-    'Delete backup': {'it': 'Elimina backup'},
-    'Deleting backup...': {'it': 'Eliminazione backup...'},
     'Operation already in progress': {'it': 'Operazione già in corso'},
     'Wait for the current operation to finish before starting another.': {'it': 'Attendi il completamento dell’operazione in corso prima di avviarne un’altra.'},
     'Home': {'it': 'Home'},

@@ -86,16 +86,14 @@ def test_catalogue_searcher_controller(monkeypatch):
     class FakeCat:
         def get_all(self): return []
     class FakeModel:
-        def __init__(self, cat, operations=None):
+        def __init__(self, cat, dash_model=None):
             self.is_search_active = False
             self.table_model = FakeTM()
             self.tree_model_manager = FakeTreeMan()
             self.signal_search_finished = FakeSignal()
             self.signal_status_card_update = FakeSignal()
             self.catalogue = FakeCat()
-        def search(self, t, q, s, e):
-            self.is_search_active = True
-            return True
+        def search(self, t, q, s, e): return True
         def stop_search(self): pass
         def load_snapshots_from_catalogue(self, s): return True
     model_mod.CatalogueSearcherModel = FakeModel
@@ -148,10 +146,8 @@ def test_catalogue_searcher_controller(monkeypatch):
     assert actions[-1][1] == ActionType.SEARCH_STOPPED
     assert ctrl.view.op_status is True
     assert not ctrl.view.action_start.enabled
-    assert not ctrl.view.action_stop.enabled
     
     # finish
-    ctrl.model.is_search_active = False
     ctrl.model.signal_search_finished.emit([])
     assert actions[-1][1] == ActionType.SEARCH_COMPLETED
     

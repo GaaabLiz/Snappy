@@ -177,7 +177,8 @@ def test_catalogue_searcher_model(monkeypatch):
     class FakeCatalogue:
         def get_all(self): return [Snapshot(id="s1", name="S1", desc="Desc", date_created=SNAPSHOT_CREATED, tags=[], data={}, directories=[])]
         
-    model = searcher_module.CatalogueSearcherModel(FakeCatalogue())
+    dash = types.SimpleNamespace(operation_active=False)
+    model = searcher_module.CatalogueSearcherModel(FakeCatalogue(), dash)
     
     # Load
     model.load_snapshots_from_catalogue()
@@ -190,6 +191,11 @@ def test_catalogue_searcher_model(monkeypatch):
     msgs = []
     model.signal_status_card_update.connect(lambda m, p, e: msgs.append((m,p,e)))
     
+    # Snapshot mutations and searches share the same flag.
+    dash.operation_active = True
+    assert not model.search("text", QueryType.TEXT, SearchTarget.FILE_NAME, [])
+    dash.operation_active = False
+
     # Search
     model.search("text", QueryType.TEXT, SearchTarget.FILE_NAME, [])
     assert len(msgs) > 0
@@ -198,7 +204,7 @@ def test_catalogue_searcher_model(monkeypatch):
     # stop
     model.stop_search()
     assert model.is_search_active
-    assert model.operations.operation_active
+    assert dash.operation_active
     
     # Fake callbacks
     op_status = searcher_module.OperationStatus("Done")
@@ -239,6 +245,7 @@ def test_catalogue_searcher_model(monkeypatch):
     res = SnapshotSearchResult(snapshot_name="S2", file_path=Path("path"), searched_text="abc")
     model.runner._all_operations = [FakeOp(True, False, [[res]])]
     model.on_runner_finished(types.SimpleNamespace(has_ops_failed=lambda: False))
+    assert not dash.operation_active
     assert model.tree_model_manager.model.rowCount() == 1
     
     # Operation finished

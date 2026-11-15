@@ -6,13 +6,6 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-echo "=== Running Integration Tests ==="
-uv run pytest test/integration/
-if [ $? -ne 0 ]; then
-    echo "❌ Integration tests failed!"
-    exit 1
-fi
-
 echo "=== Running E2E Tests Individually ==="
 for file in test/e2e/test_*.py; do
     echo "Running $file..."

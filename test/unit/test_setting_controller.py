@@ -180,28 +180,9 @@ def test_setting_controller(monkeypatch, tmp_path):
             self.deleted_paths.append(path)
             path.unlink()
     class FakeDash:
-        def __init__(self):
-            from snappy.model.operation import OperationState
-            self.operations = OperationState()
-            self.snap_catalogue = FakeCat()
-        @property
-        def operation_active(self): return self.operations.operation_active
-        def update(self, *, before_update=None):
-            lease = self.operations.try_acquire(self)
-            if lease is None: return False
-            with lease:
-                if before_update: before_update()
-            return True
-        def run_heavy_operation(self, _name, _desc, func, on_success=None):
-            lease = self.operations.try_acquire(self)
-            if lease is None: return False
-            with lease:
-                try:
-                    result = func(None)
-                    if on_success: on_success(result)
-                except Exception as error:
-                    msgs.append(str(error))
-            return True
+        operation_active = False
+        def __init__(self): self.snap_catalogue = FakeCat()
+        def update(self): pass
     dash_mod.DashboardModel = FakeDash
     monkeypatch.setitem(sys.modules, "snappy.model.dashboard", dash_mod)
     
@@ -231,6 +212,16 @@ def test_setting_controller(monkeypatch, tmp_path):
     assert settings.values["b"] == backup_dir
     assert app_mod.snap_settings.backup_path == backup_dir
     
+    # Shared paths and cleanup must not change while another operation is running.
+    dash.operation_active = True
+    previous_settings = dict(settings.values)
+    assert ctrl.model.set_catalogue_path("/busy-catalogue") is False
+    assert ctrl.model.set_backup_path("/busy-backups") is False
+    assert ctrl.model.clear_backup_directory() is False
+    assert settings.values == previous_settings
+    assert dash.snap_catalogue.deleted_paths == []
+    dash.operation_active = False
+
     # clear backups
     ctrl.view.signal_clear_backups_request.emit()
     assert actions[-1][1] == ActionType.SETTINGS_BACKUP_CLEANED
@@ -273,6 +264,7 @@ def test_setting_controller(monkeypatch, tmp_path):
     dash.snap_catalogue.list_error = OSError("list fail")
     ctrl.view.signal_clear_backups_request.emit()
     assert "list fail" in msgs[-1]
+    assert not dash.operation_active
 
     # A missing configured directory is treated as an empty backup folder.
     dash.snap_catalogue.list_error = None

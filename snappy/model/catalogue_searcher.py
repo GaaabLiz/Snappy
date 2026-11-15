@@ -10,7 +10,6 @@ from pylizlib.qt.handler.operation_domain import OperationInfo, OperationStatus
 from pylizlib.qt.handler.operation_runner import OperationRunner, RunnerStatistics
 
 from snappy.application.i18n import tr
-from snappy.model.operation import OperationState
 
 
 class SearchResultsTableModel(QAbstractTableModel):
@@ -264,7 +263,7 @@ class CatalogueSearcherModel(QObject):
 
     Signals:
         signal_search_started: Emitted when the search runner starts.
-        signal_search_stopped: Emitted when the runner receives a stop request.
+        signal_search_stopped: Emitted when the search runner is stopped.
         signal_search_finished: Emitted when the search runner completes all operations.
         signal_status_card_update(str, int, str): Emitted to update the main status card
                                                    with a message, progress, and ETA.
@@ -274,7 +273,7 @@ class CatalogueSearcherModel(QObject):
     signal_search_finished = Signal(object)
     signal_status_card_update = Signal(str, int, str)
 
-    def __init__(self, catalogue: SnapshotCatalogue, operations: OperationState | None = None):
+    def __init__(self, catalogue: SnapshotCatalogue, dash_model=None):
         """
         Initializes the CatalogueSearcherModel.
 
@@ -283,8 +282,7 @@ class CatalogueSearcherModel(QObject):
         """
         super().__init__()
         self.catalogue = catalogue
-        self.operations = operations if operations is not None else OperationState()
-        self._search_lease = None
+        self.dash_model = dash_model
         self.table_model = SearchResultsTableModel()
         self.tree_model_manager = SearchResultsTreeModel()
         self.runner = OperationRunner()
@@ -292,6 +290,7 @@ class CatalogueSearcherModel(QObject):
         self._current_message = tr("Waiting...")
         self._current_progress = 0
         self._current_eta = "--:--"
+        self._search_active = False
 
         self.runner.runner_start.connect(self.signal_search_started)
         self.runner.runner_stop.connect(self.signal_search_stopped)
@@ -309,7 +308,7 @@ class CatalogueSearcherModel(QObject):
     @property
     def is_search_active(self) -> bool:
         """Whether a search is currently using the loaded snapshot scope."""
-        return self.operations.is_owned_by(self)
+        return self._search_active
 
     def __get_runner_operations(self, params: SnapshotSearchParams) -> list[Operation]:
         """
@@ -342,7 +341,7 @@ class CatalogueSearcherModel(QObject):
         Returns:
             bool: Whether the snapshot scope was updated.
         """
-        if self.is_search_active:
+        if self._search_active:
             logger.info("Ignoring snapshot scope change while search is running.")
             return False
 
@@ -372,50 +371,51 @@ class CatalogueSearcherModel(QObject):
         Returns:
             bool: Whether a new search was started.
         """
-        if self.is_search_active:
+        if self._search_active:
             logger.info("Ignoring search request because a search is already running.")
             return False
 
-        lease = self.operations.try_acquire(self)
-        if lease is None:
+        if self.dash_model and self.dash_model.operation_active:
             return False
-        self._search_lease = lease
+
+        self.table_model.reset_search_state()
+        self.tree_model_manager.clear()
+        self._current_message = tr("Starting...")
+        self._current_progress = 0
+        self._current_eta = "--:--"
+        self._emit_status_card_update()
+
+        params = SnapshotSearchParams(
+            query=text,
+            query_type=query_type,
+            search_target=search_target,
+            extensions=extensions
+        )
+        operations = self.__get_runner_operations(params)
+        if not operations:
+            logger.info("No snapshots are available for search.")
+            return False
+
+        self._search_active = True
+        if self.dash_model:
+            self.dash_model.operation_active = True
         try:
-            self.table_model.reset_search_state()
-            self.tree_model_manager.clear()
-            self._current_message = tr("Starting...")
-            self._current_progress = 0
-            self._current_eta = "--:--"
-            self._emit_status_card_update()
-
-            params = SnapshotSearchParams(
-                query=text,
-                query_type=query_type,
-                search_target=search_target,
-                extensions=extensions
-            )
-            operations = self.__get_runner_operations(params)
-            if not operations:
-                logger.info("No snapshots are available for search.")
-                self._search_lease = None
-                lease.release()
-                return False
-
             self.runner.clear()
             self.runner.adds(operations)
             logger.debug("Starting search operations in model")
             self.runner.start()
             return True
         except Exception:
-            self._search_lease = None
-            lease.release()
+            self._search_active = False
+            if self.dash_model:
+                self.dash_model.operation_active = False
             raise
 
     def stop_search(self):
-        """Request cancellation; ownership lasts until runner_finish."""
+        """Stops the ongoing search operation."""
         logger.debug("Stopping search operations in model")
-        if self.is_search_active:
-            self.runner.stop()
+        self.runner.stop()
+        # Keep the flag set until runner_finish confirms all tasks have exited.
 
     def on_operation_status_changed(self, op_id: str, status: OperationStatus):
         """
@@ -504,7 +504,7 @@ class CatalogueSearcherModel(QObject):
         Args:
             statistics (RunnerStatistics): Statistics about the completed run.
         """
-        lease, self._search_lease = self._search_lease, None
+        failures = []
         try:
             logger.info("Model search finished. Processing statistics...")
             all_results = []
@@ -512,7 +512,6 @@ class CatalogueSearcherModel(QObject):
                 all_results.extend(self._get_operation_results(op))
 
             self.tree_model_manager.populate_from_results(all_results)
-            failures = []
             if statistics.has_ops_failed():
                 snapshot_names = {snapshot.id: snapshot.name for snapshot in self.table_model.get_data()}
                 for operation in statistics.operations:
@@ -528,13 +527,11 @@ class CatalogueSearcherModel(QObject):
                     error = statistics.get_first_error()
                     failures.append((tr("Unknown snapshot"), str(error) if error else tr("No error details available.")))
 
-            self.signal_search_finished.emit(failures)
-        except Exception as error:
-            logger.error(f"Error processing search results: {error}")
-            self.signal_search_finished.emit([(tr("Search"), str(error))])
         finally:
-            if lease is not None:
-                lease.release()
+            self._search_active = False
+            if self.dash_model:
+                self.dash_model.operation_active = False
+            self.signal_search_finished.emit(failures)
 
     def get_results_for_snapshot(self, snap_id: str) -> list[SnapshotSearchResult]:
         """
