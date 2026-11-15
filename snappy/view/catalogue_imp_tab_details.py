@@ -32,7 +32,9 @@ class TabDetails(QWidget):
         """
         super().__init__()
         self.payload_data: Snapshot | None = payload_data
-        self.tags = tags
+        self.tags = list(tags)
+        if self.payload_data:
+            self.tags.extend(tag for tag in (self.payload_data.tags or []) if tag not in self.tags)
         self.layout = QVBoxLayout(self)
         self.custom_data_keys = custom_data_keys
         self.custom_data_inputs = {}
