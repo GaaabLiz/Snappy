@@ -289,6 +289,7 @@ class CatalogueSearcherModel(QObject):
         self._current_message = tr("Waiting...")
         self._current_progress = 0
         self._current_eta = "--:--"
+        self._search_active = False
 
         self.runner.runner_start.connect(self.signal_search_started)
         self.runner.runner_stop.connect(self.signal_search_stopped)
@@ -302,6 +303,11 @@ class CatalogueSearcherModel(QObject):
         self.runner.op_eta_update.connect(self.on_eta_update)
 
         self._op_id_to_snap_id = {}
+
+    @property
+    def is_search_active(self) -> bool:
+        """Whether a search is currently using the loaded snapshot scope."""
+        return self._search_active
 
     def __get_runner_operations(self, params: SnapshotSearchParams) -> list[Operation]:
         """
@@ -323,14 +329,21 @@ class CatalogueSearcherModel(QObject):
             ops.append(op)
         return ops
 
-    def load_snapshots_from_catalogue(self, snapshot_or_snapshots: Snapshot | list[Snapshot] | None = None):
+    def load_snapshots_from_catalogue(self, snapshot_or_snapshots: Snapshot | list[Snapshot] | None = None) -> bool:
         """
         Loads snapshot names from the catalogue and populates the table model.
         If snapshots are provided, only those are loaded. Otherwise, all snapshots are loaded.
         
         Args:
             snapshot_or_snapshots: A specific snapshot, a list of snapshots, or None. Defaults to None.
+
+        Returns:
+            bool: Whether the snapshot scope was updated.
         """
+        if self._search_active:
+            logger.info("Ignoring snapshot scope change while search is running.")
+            return False
+
         if snapshot_or_snapshots:
             if isinstance(snapshot_or_snapshots, list):
                 snapshots = snapshot_or_snapshots
@@ -339,8 +352,9 @@ class CatalogueSearcherModel(QObject):
         else:
             snapshots = self.catalogue.get_all()
         self.table_model.update_data(snapshots)
+        return True
 
-    def search(self, text: str, query_type: QueryType, search_target: SearchTarget, extensions: list[str]):
+    def search(self, text: str, query_type: QueryType, search_target: SearchTarget, extensions: list[str]) -> bool:
         """
         Starts a new search operation.
 
@@ -352,7 +366,14 @@ class CatalogueSearcherModel(QObject):
             query_type (QueryType): The type of query (TEXT or REGEX).
             search_target (SearchTarget): The target of the search (FILE_NAME or FILE_CONTENT).
             extensions (list[str]): A list of file extensions to filter by.
+
+        Returns:
+            bool: Whether a new search was started.
         """
+        if self._search_active:
+            logger.info("Ignoring search request because a search is already running.")
+            return False
+
         self.table_model.reset_search_state()
         self.tree_model_manager.clear()
         self._current_message = tr("Starting...")
@@ -367,15 +388,22 @@ class CatalogueSearcherModel(QObject):
             extensions=extensions
         )
         operations = self.__get_runner_operations(params)
+        if not operations:
+            logger.info("No snapshots are available for search.")
+            return False
+
+        self._search_active = True
         self.runner.clear()
         self.runner.adds(operations)
         logger.debug("Starting search operations in model")
         self.runner.start()
+        return True
 
     def stop_search(self):
         """Stops the ongoing search operation."""
         logger.debug("Stopping search operations in model")
         self.runner.stop()
+        self._search_active = False
 
     def on_operation_status_changed(self, op_id: str, status: OperationStatus):
         """
@@ -465,12 +493,13 @@ class CatalogueSearcherModel(QObject):
             statistics (RunnerStatistics): Statistics about the completed run.
         """
         logger.info("Model search finished. Processing statistics...")
-        self.signal_search_finished.emit()
         all_results = []
         for op in self.runner._all_operations:
             all_results.extend(self._get_operation_results(op))
 
         self.tree_model_manager.populate_from_results(all_results)
+        self._search_active = False
+        self.signal_search_finished.emit()
 
     def get_results_for_snapshot(self, snap_id: str) -> list[SnapshotSearchResult]:
         """

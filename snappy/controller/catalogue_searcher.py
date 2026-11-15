@@ -53,6 +53,11 @@ class CatalogueSearcherController:
         """
         Handles the snapshot filter change from the dropdown menu.
         """
+        if self.model.is_search_active:
+            current_ids = [snapshot.id for snapshot in self.model.table_model.get_data()]
+            self.view.update_snapshot_menu(self.model.catalogue.get_all(), current_ids)
+            return
+
         if not snap_ids:
             self.open(None)
         else:
@@ -67,6 +72,9 @@ class CatalogueSearcherController:
         Args:
             row (int): The row index of the snapshot to remove.
         """
+        if self.model.is_search_active:
+            return
+
         logger.debug(f"Removing row {row} from search results")
         self.model.table_model.remove_snapshot(row)
         log_action(ActionCategory.SEARCH, ActionType.SEARCH_SNAPSHOT_REMOVED, f"row={row}")
@@ -121,6 +129,9 @@ class CatalogueSearcherController:
         """
         Gathers search parameters from the view and triggers a search in the model.
         """
+        if self.model.is_search_active:
+            return
+
         search_text = self.view.search_bar.text()
         if not search_text.strip():
             m = MessageBox(
@@ -141,14 +152,19 @@ class CatalogueSearcherController:
         self.view.action_stop.setEnabled(True)
 
         logger.info(f"Starting search: text='{search_text}', type={query_type}, target={search_target}")
-        self.model.search(search_text, query_type, search_target, extensions)
+        if not self.model.search(search_text, query_type, search_target, extensions):
+            self.view.set_operation_status(False)
+            self.view.action_start.setEnabled(True)
+            self.view.action_stop.setEnabled(False)
+            return
+
         log_action(ActionCategory.SEARCH, ActionType.SEARCH_STARTED, f"query={search_text}")
 
     def _stop_search(self):
         """Stops the search operation in the model and updates the UI state."""
-        self.view.set_operation_status(False)
         logger.info("Search interrupted by user")
         self.model.stop_search()
+        self.view.set_operation_status(False)
 
         # Toggle button states
         self.view.action_start.setEnabled(True)
@@ -171,7 +187,12 @@ class CatalogueSearcherController:
         If snapshots are provided, the page is scoped to those snapshots only.
         Otherwise it shows all snapshots.
         """
-        self.model.load_snapshots_from_catalogue(snapshot_or_snapshots)
+        if self.model.is_search_active:
+            logger.info("Ignoring search scope update while a search is running.")
+            return
+
+        if not self.model.load_snapshots_from_catalogue(snapshot_or_snapshots):
+            return
         
         all_snapshots = self.model.catalogue.get_all()
         selected_ids = []

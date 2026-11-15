@@ -429,9 +429,16 @@ class CatalogueSearcherView(SnappyQFrame):
         is_enabled = not active
         self.search_bar.setEnabled(is_enabled)
         self.results_table.setEnabled(is_enabled)
-        self.extensions_button.setEnabled(is_enabled)
-        self.target_button.setEnabled(is_enabled)
-        self.query_type_button.setEnabled(is_enabled)
+        for button in (
+            self.extensions_button,
+            self.target_button,
+            self.query_type_button,
+            self.snapshot_button,
+        ):
+            button.setEnabled(is_enabled)
+            menu = button.menu()
+            if menu:
+                menu.setEnabled(is_enabled)
 
         if active:
             self.status_card.show()
