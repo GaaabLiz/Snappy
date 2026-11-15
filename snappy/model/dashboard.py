@@ -141,10 +141,18 @@ class DashboardModel(QObject):
             runner.start()
             return True
         except Exception as e:
-            self._heavy_runners.remove(runner)
+            if runner in self._heavy_runners:
+                self._heavy_runners.remove(runner)
+            logger.error(f"Error launching {op_name}: {e}")
+            error_title = error_msg_title or tr("Error")
+            error_message = (
+                error_msg_template.format(error=str(e))
+                if error_msg_template
+                else tr("An error occurred: {error}", error=str(e))
+            )
+            self.signal_on_heavy_operation_error.emit(error_title, error_message)
             self.operation_active = False
             self.signal_on_update_complete.emit()
-            logger.error(f"Error launching {op_name}: {e}")
             return False
 
 
