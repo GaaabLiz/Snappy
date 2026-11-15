@@ -1,3 +1,8 @@
+import sqlite3
+from unittest.mock import MagicMock, Mock
+
+import pytest
+
 
 def test_history(monkeypatch, tmp_path):
     db_path = tmp_path / "test_history.db"
@@ -29,3 +34,28 @@ def test_history(monkeypatch, tmp_path):
     assert actions[1]["action_key"] == "dashboard.f5.pressed"
     assert actions[1]["details"] == "details"
 
+
+@pytest.mark.parametrize("stage", ["connect", "execute", "commit", "exit", "directory"])
+def test_log_action_storage_failure_is_logged_without_raising(monkeypatch, stage):
+    import snappy.model.history as history
+
+    connection = MagicMock()
+    connection.__enter__.return_value = connection
+    get_connection = Mock(return_value=connection)
+    error = sqlite3.OperationalError("history unavailable")
+    if stage == "directory":
+        get_connection.side_effect = PermissionError("history directory is not writable")
+    elif stage == "connect":
+        get_connection.side_effect = error
+    elif stage == "exit":
+        connection.__exit__.side_effect = error
+    else:
+        getattr(connection, stage).side_effect = error
+    monkeypatch.setattr(history, "_get_connection", get_connection)
+    warning = Mock()
+    monkeypatch.setattr(history.logger, "warning", warning)
+
+    history.log_action(
+        history.ActionCategory.CATALOGUE, history.ActionType.CATALOGUE_SNAPSHOT_INSTALLED, "Snapshot"
+    )
+    warning.assert_called_once()

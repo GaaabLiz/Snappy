@@ -2,6 +2,7 @@ import sqlite3
 from enum import Enum
 from pathlib import Path
 
+from loguru import logger
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
 
 from snappy.application.app import app
@@ -96,19 +97,22 @@ def init_action_history_db():
 
 def log_action(screen_key: ActionCategory | str, action_key: ActionType | str, details: str = ""):
     """
-    Logs a new action into the action history database.
+    Logs an action without letting history storage errors affect the operation.
 
     Args:
         screen_key (ActionCategory | str): The screen or category where the action occurred.
         action_key (ActionType | str): The specific action that was performed.
         details (str, optional): Additional details about the action. Defaults to an empty string.
     """
-    with _get_connection() as conn:
-        conn.execute(
-            "INSERT INTO action_history (screen_key, action_key, details) VALUES (?, ?, ?)",
-            ((screen_key.value if isinstance(screen_key, ActionCategory) else screen_key), (action_key.value if isinstance(action_key, ActionType) else action_key), details),
-        )
-        conn.commit()
+    try:
+        with _get_connection() as conn:
+            conn.execute(
+                "INSERT INTO action_history (screen_key, action_key, details) VALUES (?, ?, ?)",
+                ((screen_key.value if isinstance(screen_key, ActionCategory) else screen_key), (action_key.value if isinstance(action_key, ActionType) else action_key), details),
+            )
+            conn.commit()
+    except (sqlite3.Error, OSError) as error:
+        logger.warning("Unable to record action {} / {}: {}", screen_key, action_key, error)
 
 
 def list_actions() -> list[dict[str, str]]:
