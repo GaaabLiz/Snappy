@@ -72,7 +72,7 @@ def _get_connection() -> sqlite3.Connection:
         sqlite3.Connection: The active SQLite database connection.
     """
     PATH_ACTION_HISTORY_DB.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(PATH_ACTION_HISTORY_DB)
+    conn = sqlite3.connect(PATH_ACTION_HISTORY_DB, timeout=0.1)
     conn.row_factory = sqlite3.Row
     return conn
 
