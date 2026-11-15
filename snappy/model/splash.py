@@ -17,10 +17,10 @@ class SplashModel:
         Checks if the catalogue path exists and is accessible.
         
         Returns:
-            bool: True if the path exists, False otherwise.
+            bool: True if the path exists and is a directory, False otherwise.
         """
         catalogue_path = Path(app_settings.get(AppSettings.catalogue_path))
-        return catalogue_path.exists()
+        return catalogue_path.is_dir()
 
     def get_catalogue_path_str(self) -> str:
         """
