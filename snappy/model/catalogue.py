@@ -161,6 +161,9 @@ class CatalogueModel:
         self._all_snapshots: list[Snapshot] = []
         self._filtered_snapshots: list[Snapshot] = []
         self._is_filtered = False
+        self._filter_text = ""
+        self._sort_key = SnapshotSortKey.NAME
+        self._sort_reverse = False
         self.table_model = SnapshotTableModel()
 
     def build_snapshot_from_raw(self, raw_data: dict, old_snapshot: Snapshot = None) -> Snapshot:
@@ -233,7 +236,10 @@ class CatalogueModel:
             snapshots (list[Snapshot]): The list of snapshots to manage.
         """
         self._all_snapshots = snapshots if snapshots is not None else []
-        self.filter("")  # Apply current filter or show all
+        self._all_snapshots = sort_snapshots(
+            self._all_snapshots, self._sort_key, reverse=self._sort_reverse
+        )
+        self.filter(self._filter_text)
 
     def get_snapshot_at(self, row: int) -> Snapshot | None:
         """
@@ -255,11 +261,10 @@ class CatalogueModel:
             sort_key (SnapshotSortKey): The key by which to sort the snapshots.
             reverse (bool, optional): Whether to reverse the sort order. Defaults to False.
         """
+        self._sort_key = sort_key
+        self._sort_reverse = reverse
         self._all_snapshots = sort_snapshots(self._all_snapshots, sort_key, reverse=reverse)
-        # After sorting, the view should reflect the sorted, unfiltered data
-        self._is_filtered = False
-        self._filtered_snapshots = []
-        self.table_model.set_snapshots(self._all_snapshots)
+        self.filter(self._filter_text)
 
     def filter(self, text: str):
         """
@@ -269,8 +274,10 @@ class CatalogueModel:
             text (str): The search query to filter snapshots by.
         """
         text = text.lower().strip()
+        self._filter_text = text
         if not text:
             self._is_filtered = False
+            self._filtered_snapshots = []
             self.table_model.set_snapshots(self._all_snapshots)
         else:
             self._is_filtered = True
