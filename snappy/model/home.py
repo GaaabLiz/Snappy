@@ -2,6 +2,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QObject, Signal
 from loguru import logger
+from pylizlib.core.os.snap import BackupType, SnapshotCatalogue
 
 from snappy.application.app import app_settings, AppSettings
 from snappy.domain.data import SnappySnapshotData
@@ -17,16 +18,18 @@ class HomeModel(QObject):
     """
     
     # Emits stats object, backup_count, catalogue_path
-    statistics_updated = Signal(object, int, str)
+    statistics_updated = Signal(object, object, str)
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, catalogue: SnapshotCatalogue | None = None):
         """
         Initializes the HomeModel.
 
         Args:
             parent (QObject, optional): Parent object. Defaults to None.
+            catalogue (SnapshotCatalogue, optional): Shared catalogue used to identify managed backups.
         """
         super().__init__(parent)
+        self.catalogue = catalogue
 
     def compute_and_emit_statistics(self, snapshot_data: SnappySnapshotData):
         """
@@ -44,9 +47,25 @@ class HomeModel(QObject):
 
         # Compute backup count
         backup_path = Path(app_settings.get(AppSettings.backup_path))
-        backup_count = 0
-        if backup_path.exists() and backup_path.is_dir():
-            backup_count = len(list(backup_path.glob("*.zip")))
+        backup_count: int | None = 0 if not backup_path.exists() else None
+        if backup_path.exists() and backup_path.is_dir() and self.catalogue is not None:
+            managed_backup_types = {
+                BackupType.ASSOCIATED_DIRECTORIES,
+                BackupType.SNAPSHOT_DIRECTORY,
+            }
+            try:
+                backup_count = sum(
+                    1
+                    for backup in self.catalogue.list_backups(backup_path)
+                    if not backup.is_export
+                    and backup.backup_type in managed_backup_types
+                    and backup.created_at is not None
+                    and bool(backup.snapshot_id)
+                )
+            except Exception as error:
+                logger.warning(f"Cannot count managed backups in '{backup_path}': {error}")
+        elif backup_path.exists() and not backup_path.is_dir():
+            logger.warning(f"Backup path is not a directory: {backup_path}")
 
         # Get catalogue path
         catalogue_path = app_settings.get(AppSettings.catalogue_path)

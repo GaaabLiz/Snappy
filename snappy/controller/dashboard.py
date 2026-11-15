@@ -43,6 +43,8 @@ class DashboardController:
         self.model = DashboardModel()
 
         self.home = HomeController()
+        if hasattr(self.home, "set_catalogue"):
+            self.home.set_catalogue(self.model.snap_catalogue)
         self.searcher = CatalogueSearcherController(self.model.snap_catalogue, self.view)
         self.history = ActionHistoryController()
         self.backup = BackupController(self.model.snap_catalogue)

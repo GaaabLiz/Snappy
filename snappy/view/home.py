@@ -169,13 +169,13 @@ class HomeView(SnappyQFrame):
 
         self.master_layout.addWidget(scroll_area, 1)
 
-    def update_statistics(self, stats: HomeStatistics, backup_count: int = 0, catalogue_path: str = ""):
+    def update_statistics(self, stats: HomeStatistics, backup_count: int | None = 0, catalogue_path: str = ""):
         """
         Updates the values displayed on all the stat cards in the home view.
 
         Args:
             stats (HomeStatistics): The statistics data object containing counts and sizes.
-            backup_count (int, optional): The current total number of backups. Defaults to 0.
+            backup_count (int | None, optional): The current number of managed backups, or None when unavailable.
             catalogue_path (str, optional): The path to the current catalogue. Defaults to "".
         """
         self.card_snap_count.update_value(str(stats.snapshot_count))
@@ -186,7 +186,10 @@ class HomeView(SnappyQFrame):
         else:
             self.card_total_files.update_value("—")
             self.card_total_dirs.update_value("—")
-        self.card_backup_count.update_value(str(backup_count))
+        if backup_count is None:
+            self.card_backup_count.update_value("—", subtitle=tr("Unavailable"))
+        else:
+            self.card_backup_count.update_value(str(backup_count))
         self.card_catalogue_path.update_value(catalogue_path)
         self.card_last_snap_date.update_value(stats.last_snapshot_date)
         self.card_oldest_snap_date.update_value(stats.oldest_snapshot_date)
