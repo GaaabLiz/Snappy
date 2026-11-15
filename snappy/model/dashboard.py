@@ -80,7 +80,7 @@ class DashboardModel(QObject):
             func (callable): The function to execute.
             success_msg_title (str, optional): The title of the success message to show when finished. Defaults to "".
             success_msg (str, optional): The detailed success message to show when finished. Defaults to "".
-            update_dashboard (bool, optional): Whether to trigger a dashboard update upon success. Defaults to True.
+            update_dashboard (bool, optional): Whether to refresh the dashboard after the operation. Defaults to True.
             error_msg_title (str, optional): The title to use for a failed operation. Defaults to "Error".
             error_msg_template (str, optional): An optional translated error message with an {error} placeholder.
         """
@@ -109,8 +109,12 @@ class DashboardModel(QObject):
                     else tr("An error occurred: {error}", error=str(error))
                 )
                 self.signal_on_heavy_operation_error.emit(error_title, error_message)
-                self.operation_active = False
-                self.signal_on_update_complete.emit()
+                if update_dashboard:
+                    self.operation_active = False
+                    self.update()
+                else:
+                    self.operation_active = False
+                    self.signal_on_update_complete.emit()
             else:
                 if success_msg_title and success_msg:
                     self.signal_on_heavy_operation_success.emit(success_msg_title, success_msg)
