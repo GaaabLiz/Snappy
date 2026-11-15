@@ -350,7 +350,7 @@ class CatalogueController:
                     tr("Update associated folders"),
                     tr("Updating folders"),
                     action,
-                    success_msg_title="", success_msg="", update_dashboard=False
+                    success_msg_title="", success_msg="", update_dashboard=True
                 )
         except Exception as e:
             UiUtils.show_message(tr("Update error"), tr("An error occurred during update: {error}", error=str(e)))
