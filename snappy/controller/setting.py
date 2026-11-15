@@ -5,7 +5,6 @@ from pathlib import Path
 from PySide6.QtCore import QProcess, QUrl
 from PySide6.QtGui import QIcon, QDesktopServices
 from PySide6.QtWidgets import QFileDialog, QApplication
-from pylizlib.qtfw.util.ui import UiUtils
 from pylizlib.qtfw.widgets.dialog.about import AboutMessageBox
 from qfluentwidgets import MessageBox
 
@@ -52,21 +51,12 @@ class SettingController:
         # Connections: Model -> View/Controller
         self.model.catalogue_path_updated.connect(self.__on_catalogue_path_updated)
         self.model.backup_path_updated.connect(self.__on_backup_path_updated)
-        self.model.backup_cleared.connect(self.__on_backup_cleared)
-        self.model.cleanup_failed.connect(self.__on_cleanup_failed)
 
     def __on_catalogue_path_updated(self, directory: str):
         self.view.update_catalogue_path(directory)
 
     def __on_backup_path_updated(self, directory: str):
         self.view.update_backup_path(directory)
-
-    def __on_backup_cleared(self, deleted_count: int, backup_path: str):
-        # We could notify the user via UI, but for now we mirror the old logic which just logs it in the model
-        pass
-
-    def __on_cleanup_failed(self, error_message: str):
-        UiUtils.show_message(tr("Error"), tr("An error occurred while cleaning the backup folder: {error}", error=error_message))
 
     def __on_language_or_theme_changed(self):
         """
@@ -125,8 +115,23 @@ class SettingController:
         )
         if not w.exec_():
             return
-            
-        self.model.clear_backup_directory()
+
+        def action(task):
+            self.model.clear_backup_directory(
+                progress_callback=task.update_task_progress,
+                message_callback=task.update_task_message,
+            )
+
+        self.dash_model.run_heavy_operation(
+            tr("Clean backups"),
+            tr("Cleaning backup folder"),
+            action,
+            success_msg_title=tr("Backups cleaned"),
+            success_msg=tr("All application-managed backups were deleted successfully."),
+            error_msg_title=tr("Error"),
+            error_msg_template=tr("An error occurred while cleaning the backup folder: {error}"),
+            update_dashboard=True,
+        )
 
     def __open_info_dialog(self):
         """

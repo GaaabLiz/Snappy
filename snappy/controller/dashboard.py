@@ -178,7 +178,6 @@ class DashboardController:
         self.model.signal_on_update_detail_text.connect(self.__handle_update_detail_text)
         self.model.signal_on_heavy_operation_success.connect(UiUtils.show_message)
         self.model.signal_on_heavy_operation_error.connect(UiUtils.show_message)
-        self.backup.signal_request_refresh.connect(self.model.update)
         
     def __handle_update_progress(self, progress: int):
         """

@@ -20,8 +20,6 @@ class SettingModel(QObject):
     # Signals
     catalogue_path_updated = Signal(str)
     backup_path_updated = Signal(str)
-    backup_cleared = Signal(int, str)  # (deleted_count, backup_path)
-    cleanup_failed = Signal(str)
     settings_synchronized = Signal()
 
     def __init__(self, dash_model, parent=None):
@@ -80,41 +78,38 @@ class SettingModel(QObject):
         log_action(ActionCategory.SETTINGS, ActionType.SETTINGS_BACKUP_PATH_CHANGED, directory)
         self.backup_path_updated.emit(directory)
 
-    def clear_backup_directory(self):
+    def clear_backup_directory(self, progress_callback=None, message_callback=None) -> int:
         """
         Deletes all application-managed backups from the configured backup directory.
-        Preserves other unmanaged files. Emits success or failure signals.
+        Preserves other unmanaged files and reports progress through optional callbacks.
         """
-        if self.dash_model.operation_active:
-            return False
-        self.dash_model.operation_active = True
-        try:
-            backup_path = Path(app_settings.get(AppSettings.backup_path))
-            deleted_count = 0
+        backup_path = Path(app_settings.get(AppSettings.backup_path))
+        deleted_count = 0
 
-            if backup_path.exists():
-                if not backup_path.is_dir():
-                    raise ValueError(f"Configured backup path '{backup_path}' is not a directory.")
+        if backup_path.exists():
+            if not backup_path.is_dir():
+                raise ValueError(f"Configured backup path '{backup_path}' is not a directory.")
 
-                managed_types = (
-                    BackupType.ASSOCIATED_DIRECTORIES,
-                    BackupType.SNAPSHOT_DIRECTORY,
-                )
-                for backup in self.dash_model.snap_catalogue.list_backups(backup_path):
-                    if backup.is_export or backup.backup_type not in managed_types:
-                        continue
-                    self.dash_model.snap_catalogue.delete_backup(backup.path)
-                    deleted_count += 1
+            managed_types = (
+                BackupType.ASSOCIATED_DIRECTORIES,
+                BackupType.SNAPSHOT_DIRECTORY,
+            )
+            backups = [
+                backup for backup in self.dash_model.snap_catalogue.list_backups(backup_path)
+                if not backup.is_export and backup.backup_type in managed_types
+            ]
+            total = len(backups)
+            for index, backup in enumerate(backups, start=1):
+                if message_callback:
+                    message_callback(backup.file_name)
+                self.dash_model.snap_catalogue.delete_backup(backup.path)
+                deleted_count += 1
+                if progress_callback:
+                    progress_callback(int(index / total * 100))
 
-            logger.info("Backup directory cleanup completed: {} file(s) deleted from {}", deleted_count, backup_path)
-            log_action(ActionCategory.SETTINGS, ActionType.SETTINGS_BACKUP_CLEANED, f"path={backup_path}; deleted={deleted_count}")
-            self.backup_cleared.emit(deleted_count, str(backup_path))
-
-        except (OSError, ValueError) as e:
-            logger.error(f"Error during backup folder cleanup: {str(e)}")
-            self.cleanup_failed.emit(str(e))
-        finally:
-            self.dash_model.operation_active = False
+        logger.info("Backup directory cleanup completed: {} file(s) deleted from {}", deleted_count, backup_path)
+        log_action(ActionCategory.SETTINGS, ActionType.SETTINGS_BACKUP_CLEANED, f"path={backup_path}; deleted={deleted_count}")
+        return deleted_count
 
     def sync_snap_settings(self, *args, **kwargs):
         """

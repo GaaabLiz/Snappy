@@ -67,7 +67,9 @@ class DashboardModel(QObject):
         func: callable,
         success_msg_title: str = "",
         success_msg: str = "",
-        update_dashboard: bool = True
+        update_dashboard: bool = True,
+        error_msg_title: str = "",
+        error_msg_template: str = "",
     ):
         """
         Executes a potentially time-consuming heavy operation asynchronously.
@@ -79,6 +81,8 @@ class DashboardModel(QObject):
             success_msg_title (str, optional): The title of the success message to show when finished. Defaults to "".
             success_msg (str, optional): The detailed success message to show when finished. Defaults to "".
             update_dashboard (bool, optional): Whether to trigger a dashboard update upon success. Defaults to True.
+            error_msg_title (str, optional): The title to use for a failed operation. Defaults to "Error".
+            error_msg_template (str, optional): An optional translated error message with an {error} placeholder.
         """
         if self.operation_active:
             self.signal_on_update_already_running.emit()
@@ -98,7 +102,13 @@ class DashboardModel(QObject):
             if stats.has_ops_failed():
                 error = stats.get_first_error()
                 logger.error(f"Error during {op_name}: {error}")
-                self.signal_on_heavy_operation_error.emit(tr("Error"), tr("An error occurred: {error}", error=str(error)))
+                error_title = error_msg_title or tr("Error")
+                error_message = (
+                    error_msg_template.format(error=str(error))
+                    if error_msg_template
+                    else tr("An error occurred: {error}", error=str(error))
+                )
+                self.signal_on_heavy_operation_error.emit(error_title, error_message)
                 self.operation_active = False
                 self.signal_on_update_complete.emit()
             else:

@@ -1,10 +1,9 @@
 from pathlib import Path
 
-from PySide6.QtCore import Signal, QObject, QUrl
+from PySide6.QtCore import QObject, QUrl
 from PySide6.QtGui import QDesktopServices
 from loguru import logger
 from pylizlib.core.os.snap.domain import SnapshotBackupInfo
-from pylizlib.qtfw.util.ui import UiUtils
 from qfluentwidgets import MessageBox
 
 from snappy.application.app import app_settings, AppSettings
@@ -22,8 +21,6 @@ class BackupController(QObject):
     Provides mechanisms to list, open, restore, and delete backups by
     interacting with the SnapshotCatalogue and communicating with the UI view.
     """
-
-    signal_request_refresh = Signal()
 
     def __init__(self, dash_model: DashboardModel):
         """
@@ -84,23 +81,27 @@ class BackupController(QObject):
             tr("Are you sure you want to restore this backup? This will overwrite current data."),
             parent=self.view
         )
-        if not w.exec_() or self.dash_model.operation_active:
+        if not w.exec_():
             logger.debug("Backup restore cancelled by user.")
             return
-        self.dash_model.operation_active = True
-        try:
+
+        def action(task):
+            task.update_task_message(backup.file_name)
             logger.info(f"Restoring backup {backup.file_name}...")
             self.snap_catalogue.restore_backup(backup.path)
             log_action(ActionCategory.BACKUPS, ActionType.BACKUP_RESTORED, backup.file_name)
-            self.update_data()
             logger.info("Backup restored successfully.")
-        except Exception as e:
-            logger.error(f"Error restoring backup: {e}")
-            UiUtils.show_message(tr("Error"), tr("An error occurred during restore: {error}", error=str(e)))
-            return
-        finally:
-            self.dash_model.operation_active = False
-        self.signal_request_refresh.emit()
+
+        self.dash_model.run_heavy_operation(
+            tr("Restore backup"),
+            tr("Restoring backup"),
+            action,
+            success_msg_title=tr("Backup restored"),
+            success_msg=tr("The backup has been restored successfully."),
+            error_msg_title=tr("Error"),
+            error_msg_template=tr("An error occurred during restore: {error}"),
+            update_dashboard=True,
+        )
 
     def __handle_delete(self, backup: SnapshotBackupInfo):
         """
@@ -114,18 +115,24 @@ class BackupController(QObject):
             tr("Are you sure you want to delete this backup? This action cannot be undone."),
             parent=self.view
         )
-        if not w.exec_() or self.dash_model.operation_active:
+        if not w.exec_():
             logger.debug("Backup deletion cancelled by user.")
             return
-        self.dash_model.operation_active = True
-        try:
+
+        def action(task):
+            task.update_task_message(backup.file_name)
             logger.info(f"Deleting backup {backup.file_name}...")
             self.snap_catalogue.delete_backup(backup.path)
             log_action(ActionCategory.BACKUPS, ActionType.BACKUP_DELETED, backup.file_name)
-            self.update_data()
             logger.info("Backup deletion completed.")
-        except Exception as e:
-            logger.error(f"Error deleting backup: {e}")
-            UiUtils.show_message(tr("Error"), tr("An error occurred during deletion: {error}", error=str(e)))
-        finally:
-            self.dash_model.operation_active = False
+
+        self.dash_model.run_heavy_operation(
+            tr("Delete backup"),
+            tr("Deleting backup"),
+            action,
+            success_msg_title=tr("Backup deleted"),
+            success_msg=tr("The backup has been deleted successfully."),
+            error_msg_title=tr("Error"),
+            error_msg_template=tr("An error occurred during deletion: {error}"),
+            update_dashboard=True,
+        )
