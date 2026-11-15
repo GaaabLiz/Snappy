@@ -152,7 +152,21 @@ class CatalogueSearcherController:
         self.view.action_stop.setEnabled(True)
 
         logger.info(f"Starting search: text='{search_text}', type={query_type}, target={search_target}")
-        if not self.model.search(search_text, query_type, search_target, extensions):
+        try:
+            search_started = self.model.search(search_text, query_type, search_target, extensions)
+        except Exception as error:
+            logger.exception("Failed to start catalogue search")
+            self.view.set_operation_status(False)
+            self.view.action_start.setEnabled(True)
+            self.view.action_stop.setEnabled(False)
+            MessageBox(
+                tr("Search error"),
+                tr("The search could not be started: {error}", error=str(error)),
+                self.view
+            ).exec()
+            return
+
+        if not search_started:
             self.view.set_operation_status(False)
             self.view.action_start.setEnabled(True)
             self.view.action_stop.setEnabled(False)

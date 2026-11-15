@@ -385,21 +385,23 @@ class CatalogueSearcherModel(QObject):
         self._current_eta = "--:--"
         self._emit_status_card_update()
 
-        params = SnapshotSearchParams(
-            query=text,
-            query_type=query_type,
-            search_target=search_target,
-            extensions=extensions
-        )
-        operations = self.__get_runner_operations(params)
-        if not operations:
-            logger.info("No snapshots are available for search.")
-            return False
-
-        self._search_active = True
-        if self.dash_model:
-            self.dash_model.operation_active = True
         try:
+            params = SnapshotSearchParams(
+                query=text,
+                query_type=query_type,
+                search_target=search_target,
+                extensions=extensions
+            )
+            operations = self.__get_runner_operations(params)
+            if not operations:
+                logger.info("No snapshots are available for search.")
+                self._current_message = tr("Waiting...")
+                self._emit_status_card_update()
+                return False
+
+            self._search_active = True
+            if self.dash_model:
+                self.dash_model.operation_active = True
             self.runner.clear()
             self.runner.adds(operations)
             logger.debug("Starting search operations in model")
@@ -409,6 +411,10 @@ class CatalogueSearcherModel(QObject):
             self._search_active = False
             if self.dash_model:
                 self.dash_model.operation_active = False
+            self._current_message = tr("Waiting...")
+            self._current_progress = 0
+            self._current_eta = "--:--"
+            self._emit_status_card_update()
             raise
 
     def stop_search(self):
