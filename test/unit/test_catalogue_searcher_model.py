@@ -1,10 +1,13 @@
 import sys
 import types
+from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtCore import Qt
 
 from pylizlib.core.os.snap import Snapshot, SnapshotSearchResult, SnapshotSearchParams, QueryType, SearchTarget
+
+SNAPSHOT_CREATED = datetime(2025, 1, 1)
 
 def _import_searcher_module(monkeypatch):
     # Mock i18n
@@ -79,8 +82,8 @@ def test_search_results_table_model(monkeypatch):
     searcher_module = _import_searcher_module(monkeypatch)
     model = searcher_module.SearchResultsTableModel()
     
-    snap1 = Snapshot(id="s1", name="Snap1", desc="Desc", date_created=None, tags=[], data={}, directories=[])
-    snap2 = Snapshot(id="s2", name="Snap2", desc="Desc", date_created=None, tags=[], data={}, directories=[])
+    snap1 = Snapshot(id="s1", name="Snap1", desc="Desc", date_created=SNAPSHOT_CREATED, tags=[], data={}, directories=[])
+    snap2 = Snapshot(id="s2", name="Snap2", desc="Desc", date_created=SNAPSHOT_CREATED, tags=[], data={}, directories=[])
     
     model.update_data([snap1, snap2])
     assert model.rowCount() == 2
@@ -153,7 +156,7 @@ def test_snap_search_task(monkeypatch):
     searcher_module = _import_searcher_module(monkeypatch)
     
     class FakeCatalogue: pass
-    snap = Snapshot(id="1", name="Snap", desc="Desc", date_created=None, tags=[], data={}, directories=[])
+    snap = Snapshot(id="1", name="Snap", desc="Desc", date_created=SNAPSHOT_CREATED, tags=[], data={}, directories=[])
     params = SnapshotSearchParams(query="abc", query_type=QueryType.TEXT, search_target=SearchTarget.FILE_NAME, extensions=[])
     
     class FakeSearcher:
@@ -172,7 +175,7 @@ def test_catalogue_searcher_model(monkeypatch):
     searcher_module = _import_searcher_module(monkeypatch)
     
     class FakeCatalogue:
-        def get_all(self): return [Snapshot(id="s1", name="S1", desc="Desc", date_created=None, tags=[], data={}, directories=[])]
+        def get_all(self): return [Snapshot(id="s1", name="S1", desc="Desc", date_created=SNAPSHOT_CREATED, tags=[], data={}, directories=[])]
         
     model = searcher_module.CatalogueSearcherModel(FakeCatalogue())
     
@@ -180,7 +183,7 @@ def test_catalogue_searcher_model(monkeypatch):
     model.load_snapshots_from_catalogue()
     assert model.table_model.rowCount() == 1
     
-    model.load_snapshots_from_catalogue(Snapshot(id="s2", name="S2", desc="Desc", date_created=None, tags=[], data={}, directories=[]))
+    model.load_snapshots_from_catalogue(Snapshot(id="s2", name="S2", desc="Desc", date_created=SNAPSHOT_CREATED, tags=[], data={}, directories=[]))
     assert model.table_model.rowCount() == 1
     
     # Status card updates via signals

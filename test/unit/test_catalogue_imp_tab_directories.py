@@ -4,7 +4,12 @@ from pylizlib.core.os.snap import Snapshot, SnapDirAssociation
 from pathlib import Path
 
 def test_tab_directories(qtbot, monkeypatch):
-    snap = Snapshot(id="1", name="n", desc="d", directories=[SnapDirAssociation("/tmp/dir1", "fid", 0)])
+    snap = Snapshot(
+        id="1",
+        name="n",
+        desc="d",
+        directories=[SnapDirAssociation(original_path="/tmp/dir1", folder_id="fid", index=0)],
+    )
     tab = TabDirectories(payload_data=snap, starred_dirs=["/tmp/dir2"])
     qtbot.addWidget(tab)
     

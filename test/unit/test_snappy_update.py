@@ -51,13 +51,13 @@ def _import_snappy_update_module(monkeypatch, starred_exes=None):
         APPLICATION = "APPLICATION"
 
     fake_snap_module = types.ModuleType("pylizlib.core.os.snap")
-    fake_snap_module.Snapshot = object
-    fake_snap_module.SnapshotUtils = object
     fake_snap_module.SnapshotCatalogue = object
 
-    fake_utils_module = types.ModuleType("pylizlib.core.os.utils")
-    fake_utils_module.is_software_installed = fake_is_software_installed
-    fake_utils_module.WindowsOsUtils = FakeWindowsOsUtils
+    fake_commands_module = types.ModuleType("pylizlib.core.os.commands")
+    fake_commands_module.is_software_installed = fake_is_software_installed
+
+    fake_processes_module = types.ModuleType("pylizlib.core.os.windows.processes")
+    fake_processes_module.WindowsOsUtils = FakeWindowsOsUtils
 
     fake_task_module = types.ModuleType("pylizlib.qt.handler.operation_core")
     fake_task_module.Task = FakeTask
@@ -76,7 +76,8 @@ def _import_snappy_update_module(monkeypatch, starred_exes=None):
     fake_i18n_module.tr = lambda key: f"TR:{key}"
 
     monkeypatch.setitem(sys.modules, "pylizlib.core.os.snap", fake_snap_module)
-    monkeypatch.setitem(sys.modules, "pylizlib.core.os.utils", fake_utils_module)
+    monkeypatch.setitem(sys.modules, "pylizlib.core.os.commands", fake_commands_module)
+    monkeypatch.setitem(sys.modules, "pylizlib.core.os.windows.processes", fake_processes_module)
     monkeypatch.setitem(sys.modules, "pylizlib.qt.handler.operation_core", fake_task_module)
     monkeypatch.setitem(sys.modules, "pylizlib.qtfw.domain.sw", fake_sw_module)
     monkeypatch.setitem(sys.modules, "qfluentwidgets", fake_qfluentwidgets_module)

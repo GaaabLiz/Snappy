@@ -1,5 +1,7 @@
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
-from pylizlib.core.os.snap import Snapshot, SnapshotSortKey, SnapshotUtils
+from pylizlib.core.os.snap import Snapshot, SnapshotSortKey
+from pylizlib.core.os.snap.sorting import sort_snapshots
+from pylizlib.core.os.system import get_system_username
 
 from snappy.application.app import app_settings, AppSettings
 from snappy.domain.data import SnappySnapshotData
@@ -174,7 +176,6 @@ class CatalogueModel:
             Snapshot: The newly constructed or updated Snapshot object.
         """
         import datetime
-        from pylizlib.core.os.utils import get_system_username
         from pylizlib.core.data.gen import gen_random_string
         from pylizlib.core.os.snap.domain import SnapshotSettings
         from pylizlib.core.os.snap import SnapDirAssociation
@@ -251,7 +252,7 @@ class CatalogueModel:
             sort_key (SnapshotSortKey): The key by which to sort the snapshots.
             reverse (bool, optional): Whether to reverse the sort order. Defaults to False.
         """
-        self._all_snapshots = SnapshotUtils.sort_snapshots(self._all_snapshots, sort_key, reverse=reverse)
+        self._all_snapshots = sort_snapshots(self._all_snapshots, sort_key, reverse=reverse)
         # After sorting, the view should reflect the sorted, unfiltered data
         self._is_filtered = False
         self._filtered_snapshots = []
