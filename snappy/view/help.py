@@ -6,6 +6,7 @@ from qfluentwidgets import (
     BodyLabel,
     CaptionLabel,
     FluentIcon,
+    FluentStyleSheet,
     IconWidget,
     PrimaryPushButton,
     SingleDirectionScrollArea,
@@ -122,6 +123,8 @@ class HelpDetailDialog(QDialog):
         root_layout.addWidget(subtitle_label)
         root_layout.addWidget(scroll, 1)
         root_layout.addWidget(btn_close)
+
+        FluentStyleSheet.DIALOG.apply(self)
 
 
 class HelpView(SnappyQFrame):
