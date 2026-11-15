@@ -81,7 +81,14 @@ class SettingController:
             return
         directory = QFileDialog.getExistingDirectory(None, tr("Select the catalogue folder"))
         if directory:
-            self.model.set_catalogue_path(directory)
+            try:
+                self.model.set_catalogue_path(directory)
+            except Exception as error:
+                MessageBox(
+                    tr("Error"),
+                    tr("The catalogue path could not be changed: {error}", error=str(error)),
+                    parent=self.view,
+                ).exec_()
 
     def __ask_backup_path(self):
         """

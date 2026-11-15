@@ -48,13 +48,25 @@ class SettingModel(QObject):
         """
         if self.dash_model.operation_active:
             return False
+        previous_setting_path = app_settings.get(AppSettings.catalogue_path)
+        previous_backend_path = getattr(self.dash_model.snap_catalogue, "path_catalogue", previous_setting_path)
+        catalogue_path = Path(directory)
         self.dash_model.operation_active = True
         try:
-            logger.info(f"Catalogue path changed to: {directory}")
-            app_settings.set(AppSettings.catalogue_path, Path(directory))
-            self.dash_model.snap_catalogue.set_catalogue_path(Path(directory))
+            logger.info(f"Changing catalogue path to: {directory}")
+            self.dash_model.snap_catalogue.set_catalogue_path(catalogue_path)
+            app_settings.set(AppSettings.catalogue_path, catalogue_path)
             log_action(ActionCategory.SETTINGS, ActionType.SETTINGS_CATALOGUE_PATH_CHANGED, directory)
             self.catalogue_path_updated.emit(directory)
+        except Exception:
+            self.dash_model.snap_catalogue.path_catalogue = previous_backend_path
+            try:
+                if app_settings.get(AppSettings.catalogue_path) != previous_setting_path:
+                    app_settings.set(AppSettings.catalogue_path, previous_setting_path)
+            except Exception as rollback_error:
+                logger.error("Unable to restore the configured catalogue path: {}", rollback_error)
+            logger.exception("Failed to change catalogue path; restored the previous path.")
+            raise
 
         finally:
             self.dash_model.operation_active = False
