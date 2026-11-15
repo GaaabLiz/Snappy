@@ -77,24 +77,29 @@ def _get_connection() -> sqlite3.Connection:
     return conn
 
 
-def init_action_history_db():
+def init_action_history_db() -> bool:
     """
     Initializes the action history database by creating the required table if it does not exist.
     """
-    with closing(_get_connection()) as conn:
-        with conn:
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS action_history (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
-                    screen_key TEXT NOT NULL,
-                    action_key TEXT NOT NULL,
-                    details TEXT NOT NULL DEFAULT ''
+    try:
+        with closing(_get_connection()) as conn:
+            with conn:
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS action_history (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+                        screen_key TEXT NOT NULL,
+                        action_key TEXT NOT NULL,
+                        details TEXT NOT NULL DEFAULT ''
+                    )
+                    """
                 )
-                """
-            )
-            conn.commit()
+                conn.commit()
+    except (sqlite3.Error, OSError) as error:
+        logger.warning("Unable to initialize action history database: {}", error)
+        return False
+    return True
 
 
 def log_action(screen_key: ActionCategory | str, action_key: ActionType | str, details: str = ""):
@@ -125,10 +130,14 @@ def list_actions() -> list[dict[str, str]]:
     Returns:
         list[dict[str, str]]: A list of dictionaries representing the logged actions, sorted by most recent first.
     """
-    with closing(_get_connection()) as conn:
-        rows = conn.execute(
-            "SELECT created_at, screen_key, action_key, details FROM action_history ORDER BY id DESC"
-        ).fetchall()
+    try:
+        with closing(_get_connection()) as conn:
+            rows = conn.execute(
+                "SELECT created_at, screen_key, action_key, details FROM action_history ORDER BY id DESC"
+            ).fetchall()
+    except (sqlite3.Error, OSError) as error:
+        logger.warning("Unable to read action history: {}", error)
+        return []
 
     return [
         {
