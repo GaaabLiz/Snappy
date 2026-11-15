@@ -489,6 +489,8 @@ class CatalogueSearcherView(SnappyQFrame):
         if selected_snapshot_ids is None:
             selected_snapshot_ids = []
 
+        snapshot_names = {snapshot.id: snapshot.name for snapshot in snapshots}
+
         if not hasattr(self, '_snapshot_actions'):
             self._snapshot_actions = {}
             
@@ -523,6 +525,7 @@ class CatalogueSearcherView(SnappyQFrame):
 
         for snap_id, action in self._snapshot_actions.items():
             action.blockSignals(True)
+            action.setText(snapshot_names[snap_id])
             action.setChecked(snap_id in selected_snapshot_ids)
             action.blockSignals(False)
 
