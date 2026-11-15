@@ -270,7 +270,7 @@ class SnapshotCatalogueWidget(SnappyQFrame):
             Action(FluentIcon.FOLDER, tr('Snapshot folder'), triggered=lambda: self.signal_open_folder_requested.emit(snapshot)),
         ])
         for assoc in snapshot.directories:
-            submenu.addAction(Action(FluentIcon.FOLDER, tr('Associated local folder: {name}', name=Path(assoc.original_path).name), triggered=lambda a=assoc: self.signal_open_assoc_folder_requested.emit(Path(assoc.original_path))))
+            submenu.addAction(Action(FluentIcon.FOLDER, tr('Associated local folder: {name}', name=Path(assoc.original_path).name), triggered=lambda a=assoc: self.signal_open_assoc_folder_requested.emit(Path(a.original_path))))
         return submenu
 
     def _show_context_menu(self, pos):
