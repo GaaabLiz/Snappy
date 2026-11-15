@@ -1,11 +1,13 @@
 from pathlib import Path
 
+from PySide6.QtCore import Qt
 from loguru import logger
 from pylizlib.qt.domain.view import UiWidgetMode
 from pylizlib.qtfw.util.ui import UiUtils
-from qfluentwidgets import FluentIcon, NavigationItemPosition
+from qfluentwidgets import FluentIcon, InfoBar, InfoBarPosition, NavigationItemPosition
 
 from snappy.application.app import app_settings, AppSettings
+from snappy.application.i18n import tr
 from snappy.model.history import log_action, ActionCategory, ActionType
 from snappy.controller.history import ActionHistoryController
 from snappy.controller.backup import BackupController
@@ -134,6 +136,18 @@ class DashboardController:
         log_action(ActionCategory.DASHBOARD, ActionType.DASHBOARD_F5_PRESSED, "")
         self.model.update()
 
+    def __handle_update_already_running(self):
+        """Show a brief notice when an update request is rejected as a duplicate."""
+        InfoBar.warning(
+            title=tr("Update already in progress"),
+            content=tr("Wait for the current update to finish before starting another."),
+            orient=Qt.Orientation.Horizontal,
+            isClosable=True,
+            position=InfoBarPosition.TOP_RIGHT,
+            duration=3500,
+            parent=self.view,
+        )
+
     def __on_page_changed(self, index: int):
         """
         Logs an action whenever the user navigates to a different page in the dashboard.
@@ -154,6 +168,7 @@ class DashboardController:
         self.view.stackedWidget.currentChanged.connect(self.__on_page_changed)
         self.model.signal_on_update_started.connect(self.__handle_update_started)
         self.model.signal_on_update_complete.connect(self.__handle_update_complete)
+        self.model.signal_on_update_already_running.connect(self.__handle_update_already_running)
         self.model.signal_on_updated_data_available.connect(self.__handle_data_updated)
         self.model.signal_on_update_progress.connect(self.__handle_update_progress)
         self.model.signal_on_update_text.connect(self.__handle_update_text)

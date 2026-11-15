@@ -141,6 +141,8 @@ _translations: dict[str, dict[str, str]] = {
     'dashboard.f5.pressed': {'en': 'F5 pressed', 'it': 'F5 premuto'},
     'dashboard.refresh.started': {'en': 'dashboard refresh started', 'it': 'aggiornamento dashboard avviato'},
     'dashboard.refresh.completed': {'en': 'dashboard refresh completed', 'it': 'aggiornamento dashboard completato'},
+    'Update already in progress': {'it': 'Aggiornamento già in corso'},
+    'Wait for the current update to finish before starting another.': {'it': 'Attendi il completamento dell’aggiornamento corrente prima di avviarne un altro.'},
     'dashboard.data.loaded': {'en': 'dashboard data loaded', 'it': 'dati dashboard caricati'},
     'dashboard.page.changed': {'en': 'page changed', 'it': 'pagina cambiata'},
     'search.page.opened': {'en': 'search screen opened', 'it': 'schermata cerca aperta'},

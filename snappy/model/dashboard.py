@@ -24,6 +24,7 @@ class DashboardModel(QObject):
 
     signal_on_update_started = Signal()
     signal_on_update_complete = Signal()
+    signal_on_update_already_running = Signal()
     signal_on_update_progress = Signal(int)
     signal_on_update_text = Signal(str)
     signal_on_update_detail_text = Signal(str)
@@ -49,6 +50,7 @@ class DashboardModel(QObject):
             delay_each_task=0.1
         )
         self.runner = OperationRunner(abort_all_on_error=True)
+        self._update_active = False
         self.runner.runner_start.connect(self.on_runner_started)
         self.runner.runner_stop.connect(self.on_runner_stopped)
         self.runner.runner_finish.connect(self.on_runner_finished)
@@ -124,10 +126,19 @@ class DashboardModel(QObject):
         """
         return self.cached_data
 
-    def update(self):
+    def update(self) -> bool:
         """
         Triggers an asynchronous update of the dashboard data by retrieving snapshots and monitored software.
+
+        Returns:
+            bool: Whether a new dashboard update was started.
         """
+        if self._update_active:
+            logger.info("Ignoring dashboard update request because an update is already running.")
+            self.signal_on_update_already_running.emit()
+            return False
+
+        self._update_active = True
         try:
             tasks = [
                 self.task_monitored_soft,
@@ -137,10 +148,12 @@ class DashboardModel(QObject):
             op = Operation(tasks, self.operation_info)
             self.runner.add(op)
             self.runner.start()
+            return True
 
         except Exception as e:
+            self._update_active = False
             logger.error(f"Error launching update: {e}")
-            return
+            return False
 
     def on_runner_started(self):
         """
@@ -157,6 +170,7 @@ class DashboardModel(QObject):
         Slot called when the main update runner stops execution prematurely.
         """
         logger.info("Dashboard update stopped.")
+        self._update_active = False
 
     def on_runner_finished(self, stats: RunnerStatistics):
         """
@@ -165,6 +179,7 @@ class DashboardModel(QObject):
         Args:
             stats (RunnerStatistics): The statistics and results from the completed operation.
         """
+        self._update_active = False
         logger.info("Dashboard update completed.")
         self.signal_on_update_complete.emit()
         if stats.has_ops_failed():
