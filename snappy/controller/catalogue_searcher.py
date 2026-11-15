@@ -172,13 +172,30 @@ class CatalogueSearcherController:
         logger.info("Search completed")
         log_action(ActionCategory.SEARCH, ActionType.SEARCH_STOPPED, "")
 
-    def _on_search_finished(self):
-        """Handles the completion of the search operation by updating the UI state."""
+    def _on_search_finished(self, failures: list[tuple[str, str]]):
+        """Updates the UI and reports snapshot searches that failed."""
         self.view.set_operation_status(False)
         self.view.action_start.setEnabled(True)
         self.view.action_stop.setEnabled(False)
-        logger.info("Search completed")
-        log_action(ActionCategory.SEARCH, ActionType.SEARCH_COMPLETED, "")
+
+        if not failures:
+            logger.info("Search completed successfully")
+            log_action(ActionCategory.SEARCH, ActionType.SEARCH_COMPLETED, "")
+            return
+
+        logger.warning(f"Search completed with {len(failures)} failed snapshot(s): {failures}")
+        log_action(
+            ActionCategory.SEARCH,
+            ActionType.SEARCH_COMPLETED_WITH_ERRORS,
+            f"failed_snapshots={len(failures)}",
+        )
+
+        failure_details = "\n\n".join(
+            f"• {snapshot_name}\n{tr('Cause: {error}', error=cause)}"
+            for snapshot_name, cause in failures
+        )
+        content = f"{tr('The search finished, but some snapshots could not be analyzed:')}\n\n{failure_details}"
+        MessageBox(tr("Search completed with errors"), content, self.view).exec()
 
     def open(self, snapshot_or_snapshots: Snapshot | list[Snapshot] | None = None):
         """

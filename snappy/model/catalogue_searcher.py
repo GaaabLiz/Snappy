@@ -270,7 +270,7 @@ class CatalogueSearcherModel(QObject):
     """
     signal_search_started = Signal()
     signal_search_stopped = Signal()
-    signal_search_finished = Signal()
+    signal_search_finished = Signal(object)
     signal_status_card_update = Signal(str, int, str)
 
     def __init__(self, catalogue: SnapshotCatalogue):
@@ -498,8 +498,24 @@ class CatalogueSearcherModel(QObject):
             all_results.extend(self._get_operation_results(op))
 
         self.tree_model_manager.populate_from_results(all_results)
+        failures = []
+        if statistics.has_ops_failed():
+            snapshot_names = {snapshot.id: snapshot.name for snapshot in self.table_model.get_data()}
+            for operation in statistics.operations:
+                if not operation.is_failed():
+                    continue
+
+                snapshot_id = self._op_id_to_snap_id.get(operation.id)
+                snapshot_name = snapshot_names.get(snapshot_id, snapshot_id or tr("Unknown snapshot"))
+                cause = str(operation.error).strip() if operation.error else tr("No error details available.")
+                failures.append((snapshot_name, cause))
+
+            if not failures:
+                error = statistics.get_first_error()
+                failures.append((tr("Unknown snapshot"), str(error) if error else tr("No error details available.")))
+
         self._search_active = False
-        self.signal_search_finished.emit()
+        self.signal_search_finished.emit(failures)
 
     def get_results_for_snapshot(self, snap_id: str) -> list[SnapshotSearchResult]:
         """

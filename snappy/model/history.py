@@ -42,6 +42,7 @@ class ActionType(str, Enum):
     SEARCH_STARTED = "search.started"
     SEARCH_STOPPED = "search.stopped"
     SEARCH_COMPLETED = "search.completed"
+    SEARCH_COMPLETED_WITH_ERRORS = "search.completed.with.errors"
     SEARCH_PAGE_OPENED = "search.page.opened"
     DASHBOARD_DATA_LOADED = "dashboard.data.loaded"
     DASHBOARD_REFRESH_STARTED = "dashboard.refresh.started"
