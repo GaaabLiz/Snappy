@@ -28,6 +28,7 @@ class ActionType(str, Enum):
     Enumeration representing specific types of actions that can be logged.
     """
     BACKUP_OPENED_IN_FINDER = "backup.opened.in.finder"
+    BACKUP_CREATED = "backup.created"
     BACKUP_RESTORED = "backup.restored"
     BACKUP_DELETED = "backup.deleted"
     CATALOGUE_CONFIG_DIALOG_OPENED = "catalogue.config.dialog.opened"
@@ -62,6 +63,14 @@ class ActionType(str, Enum):
 
 
 PATH_ACTION_HISTORY_DB = Path(app.get_path()).joinpath("ActionHistory.db")
+_HIDDEN_ACTION_KEYS = (
+    ActionType.DASHBOARD_DATA_LOADED.value,
+    ActionType.DASHBOARD_REFRESH_STARTED.value,
+    ActionType.DASHBOARD_REFRESH_COMPLETED.value,
+    ActionType.DASHBOARD_F5_PRESSED.value,
+    ActionType.DASHBOARD_PAGE_CHANGED.value,
+    ActionType.SEARCH_PAGE_OPENED.value,
+)
 
 
 def _get_connection() -> sqlite3.Connection:
@@ -132,8 +141,11 @@ def list_actions() -> list[dict[str, str]] | None:
     """
     try:
         with closing(_get_connection()) as conn:
+            placeholders = ", ".join("?" for _ in _HIDDEN_ACTION_KEYS)
             rows = conn.execute(
-                "SELECT created_at, screen_key, action_key, details FROM action_history ORDER BY id DESC"
+                "SELECT created_at, screen_key, action_key, details FROM action_history "
+                f"WHERE action_key NOT IN ({placeholders}) ORDER BY id DESC",
+                _HIDDEN_ACTION_KEYS,
             ).fetchall()
     except (sqlite3.Error, OSError) as error:
         logger.warning("Unable to read action history: {}", error)

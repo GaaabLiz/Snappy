@@ -142,13 +142,13 @@ class HelpModel(QObject):
             "history": (
                 tr("Action History"),
                 tr("Track application events"),
-                tr("The Action History screen serves as an unalterable audit trail of your activities within Snappy.\n\n"
-                   "Every significant operation you perform is logged here chronologically. This includes creating new snapshots, installing configurations, deleting data, refreshing the dashboard, and altering application settings.\n\n"
+                tr("The Action History screen keeps a chronological record of important operations in Snappy.\n\n"
+                   "It includes snapshot creation, edits, installation, deletion and export, along with backup creation, restore, deletion and cleanup.\n\n"
                    "Understanding the Log:\n"
                    "• Timestamp: The exact date and time the action occurred.\n"
-                   "• Screen: Identifies which module of Snappy triggered the event (e.g., Dashboard, Catalogue, Search).\n"
-                   "• Action: A technical identifier of what happened (e.g., 'dashboard.refresh.completed', 'search.page.opened').\n"
-                   "• Details: Context-specific payloads, such as the name of the snapshot you installed or the number of snapshots loaded during a refresh.\n\n"
+                   "• Screen: Identifies which module of Snappy triggered the event (e.g., Catalogue, Backups or Settings).\n"
+                   "• Action: Describes what happened, such as a snapshot installation or backup restore.\n"
+                   "• Details: Context-specific information, such as the snapshot name or backup file.\n\n"
                    "This screen is invaluable for retracing your steps. If you return to a project after a long break and wonder, 'Which snapshot did I install last?', the Action History provides the definitive answer."),
             ),
             "backup": (

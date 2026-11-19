@@ -24,15 +24,11 @@ def test_history(monkeypatch, tmp_path):
     
     actions = ah.list_actions()
     
-    assert len(actions) == 2
+    assert len(actions) == 1
     
     assert actions[0]["screen_key"] == "CustomScreen"
     assert actions[0]["action_key"] == "CustomAction"
     assert actions[0]["details"] == "CustomDetails"
-    
-    assert actions[1]["screen_key"] == "Dashboard"
-    assert actions[1]["action_key"] == "dashboard.f5.pressed"
-    assert actions[1]["details"] == "details"
 
 
 @pytest.mark.parametrize("stage", ["connect", "execute", "commit", "exit", "directory"])

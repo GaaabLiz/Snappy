@@ -200,6 +200,15 @@ def test_catalogue_controller(monkeypatch):
     # __update_assoc_dirs_from_installed
     ctrl.view.signal_update_with_local_dirs_requested.emit(snap)
     assert actions[-1][1] == ActionType.CATALOGUE_ASSOCIATED_FOLDERS_UPDATED
+    automatic_backups = {
+        (action_type, details)
+        for _, action_type, details in actions
+        if action_type == ActionType.BACKUP_CREATED
+    }
+    assert (ActionType.BACKUP_CREATED, "snapshot=Snap1; before=edit") in automatic_backups
+    assert (ActionType.BACKUP_CREATED, "snapshot=Snap1; before=install") in automatic_backups
+    assert (ActionType.BACKUP_CREATED, "snapshot=Snap1; before=delete") in automatic_backups
+    assert (ActionType.BACKUP_CREATED, "snapshot=Snap1; before=update with local") in automatic_backups
     
     # test cancel modal / dialogs
     FakeDialogConfig.res = False

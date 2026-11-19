@@ -85,7 +85,6 @@ class DashboardController:
         self.searcher.open()
         self.backup.update_data()
         self.history.reload()
-        log_action(ActionCategory.DASHBOARD, ActionType.DASHBOARD_DATA_LOADED, f"snapshots={len(data.snapshots)}")
 
         self.model.snap_catalogue.path_catalogue = Path(app_settings.get(AppSettings.catalogue_path))
 
@@ -96,7 +95,6 @@ class DashboardController:
 
         Sets all child views to an 'UPDATING' state to display progress indicators.
         """
-        log_action(ActionCategory.DASHBOARD, ActionType.DASHBOARD_REFRESH_STARTED, "F5/dashboard refresh")
         self.home.view.set_state(UiWidgetMode.UPDATING)
         self.catalogue.view.set_state(UiWidgetMode.UPDATING)
         self.searcher.view.set_state(UiWidgetMode.UPDATING)
@@ -110,7 +108,6 @@ class DashboardController:
 
         Restores all child views to a 'DISPLAYING' state.
         """
-        log_action(ActionCategory.DASHBOARD, ActionType.DASHBOARD_REFRESH_COMPLETED, "")
         self.home.view.set_state(UiWidgetMode.DISPLAYING)
         self.catalogue.view.set_state(UiWidgetMode.DISPLAYING)
         self.searcher.view.set_state(UiWidgetMode.DISPLAYING)
@@ -127,16 +124,11 @@ class DashboardController:
         """
         self.searcher.open(snapshot)
         self.view.switchTo(self.searcher.view)
-        if snapshot is None:
-            log_action(ActionCategory.SEARCH, ActionType.SEARCH_PAGE_OPENED, "scope=all")
-        else:
-            log_action(ActionCategory.SEARCH, ActionType.SEARCH_PAGE_OPENED, f"scope=snapshot:{snapshot.name}")
 
     def __on_f5_pressed(self):
         """
         Handles the manual refresh action triggered by the F5 key.
         """
-        log_action(ActionCategory.DASHBOARD, ActionType.DASHBOARD_F5_PRESSED, "")
         self.model.update()
 
     def __handle_update_already_running(self):
@@ -151,24 +143,11 @@ class DashboardController:
             parent=self.view,
         )
 
-    def __on_page_changed(self, index: int):
-        """
-        Logs an action whenever the user navigates to a different page in the dashboard.
-
-        Args:
-            index (int): The index of the newly selected page in the stacked widget.
-        """
-        widget = self.view.stackedWidget.widget(index)
-        page_name = getattr(widget, "window_name", "")
-        if page_name:
-            log_action(ActionCategory.DASHBOARD, ActionType.DASHBOARD_PAGE_CHANGED, page_name)
-
     def __connect_signals(self):
         """
         Connects all UI and model signals to their respective handler slots.
         """
         self.view.f5_pressed.connect(self.__on_f5_pressed)
-        self.view.stackedWidget.currentChanged.connect(self.__on_page_changed)
         self.model.signal_on_update_started.connect(self.__handle_update_started)
         self.model.signal_on_update_complete.connect(self.__handle_update_complete)
         self.model.signal_on_update_already_running.connect(self.__handle_update_already_running)

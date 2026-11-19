@@ -256,11 +256,11 @@ def test_start_connects_signals_and_runs_initial_refresh(monkeypatch):
 
     controller.view.f5_pressed.emit()
     assert controller.model.update_count == 2
-    assert ("Dashboard", "dashboard.f5.pressed", "") in actions
+    assert not any(action[1] == "dashboard.f5.pressed" for action in actions)
 
     controller.view.stackedWidget.widgets[3] = types.SimpleNamespace(window_name="Catalogue")
     controller.view.stackedWidget.currentChanged.emit(3)
-    assert ("Dashboard", "dashboard.page.changed", "Catalogue") in actions
+    assert not any(action[1] == "dashboard.page.changed" for action in actions)
 
 
 def test_open_search_page_switches_view_and_logs_scope(monkeypatch):
@@ -272,12 +272,12 @@ def test_open_search_page_switches_view_and_logs_scope(monkeypatch):
     controller._DashboardController__open_search_page()
     assert controller.searcher.open_calls[-1] is None
     assert controller.view.switched_to is controller.searcher.view
-    assert ("Search", "search.page.opened", "scope=all") in actions
+    assert not any(action[1] == "search.page.opened" for action in actions)
 
     snap = types.SimpleNamespace(name="snap-1")
     controller._DashboardController__open_search_page(snap)
     assert controller.searcher.open_calls[-1] is snap
-    assert ("Search", "search.page.opened", "scope=snapshot:snap-1") in actions
+    assert not any(action[1] == "search.page.opened" for action in actions)
 
 
 def test_update_started_and_complete_toggle_all_states(monkeypatch):
@@ -293,7 +293,7 @@ def test_update_started_and_complete_toggle_all_states(monkeypatch):
     assert controller.history.view.states[-1] == "UPDATING"
     assert controller.backup.view.states[-1] == "UPDATING"
     assert controller.help.view.states[-1] == "UPDATING"
-    assert ("Dashboard", "dashboard.refresh.started", "F5/dashboard refresh") in actions
+    assert not any(action[1] == "dashboard.refresh.started" for action in actions)
 
     controller._DashboardController__handle_update_complete()
     assert controller.home.view.states[-1] == "DISPLAYING"
@@ -302,7 +302,7 @@ def test_update_started_and_complete_toggle_all_states(monkeypatch):
     assert controller.history.view.states[-1] == "DISPLAYING"
     assert controller.backup.view.states[-1] == "DISPLAYING"
     assert controller.help.view.states[-1] == "DISPLAYING"
-    assert ("Dashboard", "dashboard.refresh.completed", "") in actions
+    assert not any(action[1] == "dashboard.refresh.completed" for action in actions)
     
     # test progress and text
     controller._DashboardController__handle_update_progress(50)
@@ -331,4 +331,4 @@ def test_handle_data_updated_updates_children_and_catalogue_path(monkeypatch):
     assert controller.history.reload_count == 1
     assert controller.backup.update_data_calls == 1
     assert controller.model.snap_catalogue.path_catalogue == Path("/tmp/snappy-catalogue")
-    assert ("Dashboard", "dashboard.data.loaded", "snapshots=3") in actions
+    assert not any(action[1] == "dashboard.data.loaded" for action in actions)
