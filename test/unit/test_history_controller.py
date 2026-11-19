@@ -14,6 +14,7 @@ def test_history_controller(monkeypatch):
     
     # Mock list_actions
     app_history_mod = types.ModuleType("snappy.model.history")
+    app_history_mod.init_action_history_db = lambda: True
     app_history_mod.list_actions = lambda: ["action1", "action2"]
     monkeypatch.setitem(sys.modules, "snappy.model.history", app_history_mod)
     

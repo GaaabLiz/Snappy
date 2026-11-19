@@ -79,6 +79,9 @@ def _import_dashboard_module(monkeypatch):
             self.view = FakePageView("History")
             self.reload_count = 0
 
+        def initialize_storage(self):
+            return True
+
         def reload(self):
             self.reload_count += 1
 

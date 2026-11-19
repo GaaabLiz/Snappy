@@ -228,6 +228,7 @@ class DashboardController:
         Shows the main view, establishes signal connections, and initiates the
         first data load for the catalogue, history, and dashboard models.
         """
+        self.history.initialize_storage()
         logger.info("Application is starting...")
         log_action(ActionCategory.DASHBOARD, ActionType.DASHBOARD_APPLICATION_STARTED, "")
         self.view.show()
