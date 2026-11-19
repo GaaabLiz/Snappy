@@ -123,12 +123,12 @@ def log_action(screen_key: ActionCategory | str, action_key: ActionType | str, d
         logger.warning("Unable to record action {} / {}: {}", screen_key, action_key, error)
 
 
-def list_actions() -> list[dict[str, str]]:
+def list_actions() -> list[dict[str, str]] | None:
     """
     Retrieves a list of all logged actions from the history database.
 
     Returns:
-        list[dict[str, str]]: A list of dictionaries representing the logged actions, sorted by most recent first.
+        list[dict[str, str]] | None: Logged actions sorted by most recent first, or None if the history is unavailable.
     """
     try:
         with closing(_get_connection()) as conn:
@@ -137,7 +137,7 @@ def list_actions() -> list[dict[str, str]]:
             ).fetchall()
     except (sqlite3.Error, OSError) as error:
         logger.warning("Unable to read action history: {}", error)
-        return []
+        return None
 
     return [
         {

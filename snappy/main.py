@@ -1,11 +1,11 @@
 import sys
 
-from PySide6.QtCore import QLocale
+from PySide6.QtCore import QLocale, Qt
 from PySide6.QtWidgets import QApplication
-from qfluentwidgets import FluentTranslator
+from qfluentwidgets import FluentTranslator, InfoBar, InfoBarPosition
 
 from snappy.application.app import app_settings, AppSettings
-from snappy.application.i18n import set_language
+from snappy.application.i18n import set_language, tr
 from snappy.controller.dashboard import DashboardController
 from snappy.controller.splash import SplashController
 from snappy.model.history import init_action_history_db
@@ -26,7 +26,7 @@ def main():
     lang = app_settings.get(AppSettings.language)
     set_language(lang)
     
-    init_action_history_db()
+    history_initialized = init_action_history_db()
 
     qt_app = QApplication(sys.argv)
 
@@ -40,6 +40,16 @@ def main():
 
     dashboard = DashboardController()
     dashboard.start()
+    if not history_initialized:
+        InfoBar.warning(
+            title=tr("History unavailable"),
+            content=tr("The history database could not be initialized. Existing history may be unavailable and new actions may not be recorded."),
+            orient=Qt.Orientation.Horizontal,
+            isClosable=True,
+            position=InfoBarPosition.TOP_RIGHT,
+            duration=8000,
+            parent=dashboard.view,
+        )
     return qt_app.exec()
 
 

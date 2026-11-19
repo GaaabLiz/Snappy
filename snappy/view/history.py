@@ -57,14 +57,20 @@ class ActionHistoryView(SnappyQFrame):
 
         self.master_layout.addLayout(container_layout, 1)
 
-    def update_rows(self, rows: list[dict[str, str]]):
+    def update_rows(self, rows: list[dict[str, str]] | None):
         """
         Updates the table model with new action history rows.
         Also toggles the visibility of the empty state label based on the row count.
 
         Args:
-            rows (list[dict[str, str]]): A list of dictionaries, where each dictionary
-                represents a row in the action history table.
+            rows (list[dict[str, str]] | None): A list of action rows, or None when history is unavailable.
         """
+        if rows is None:
+            self.model.set_rows([])
+            self.empty_label.setText(tr("Action history is unavailable. New actions may not be recorded."))
+            self.empty_label.setVisible(True)
+            return
+
         self.model.set_rows(rows)
+        self.empty_label.setText(tr("No actions recorded yet."))
         self.empty_label.setVisible(len(rows) == 0)
