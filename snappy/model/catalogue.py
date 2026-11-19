@@ -185,18 +185,16 @@ class CatalogueModel:
 
         settings = SnapshotSettings()
         assoc = []
-        existing_assocs = {a.original_path: a for a in old_snapshot.directories} if old_snapshot else {}
+        # Reuse cloned associations to retain their integrity manifests and storage names.
+        data = old_snapshot.clone() if old_snapshot else None
+        existing_assocs = {a.original_path: a for a in data.directories} if data else {}
 
         index = 0
         for path_str in raw_data["directories"]:
             if path_str in existing_assocs:
                 old_a = existing_assocs[path_str]
-                assoc.append(SnapDirAssociation(
-                    original_path=old_a.original_path,
-                    folder_id=old_a.folder_id,
-                    index=index,
-                    mb_size=old_a.mb_size
-                ))
+                old_a.index = index
+                assoc.append(old_a)
             else:
                 assoc.append(SnapDirAssociation(
                     original_path=path_str,
@@ -205,8 +203,7 @@ class CatalogueModel:
                 ))
             index += 1
 
-        if old_snapshot:
-            data = old_snapshot.clone()
+        if data:
             data.name = raw_data["name"]
             data.desc = raw_data["desc"]
             data.tags = raw_data["tags"]
