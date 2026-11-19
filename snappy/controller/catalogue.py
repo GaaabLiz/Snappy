@@ -1,10 +1,13 @@
+import copy
+import stat
 from pathlib import Path
 
 from PySide6.QtWidgets import QFileDialog
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtCore import QUrl
 from loguru import logger
-from pylizlib.core.os.snap import Snapshot
+from pylizlib.core.os.snap import BackupType, Snapshot, SnapshotCatalogue, SnapshotManager
+from pylizlib.core.os.snap.storage.coordination import catalogue_access
 from pylizlib.qtfw.util.ui import UiUtils
 from qfluentwidgets import MessageBox
 
@@ -83,6 +86,94 @@ class CatalogueController:
                 ActionType.BACKUP_CREATED,
                 f"snapshot={snap.name}; before={operation}",
             )
+
+    def __install_snapshot_data(
+        self,
+        snap: Snapshot,
+        clear_destination: bool,
+        progress_callback=None,
+        message_callback=None,
+    ) -> bool:
+        """Install a snapshot, omitting missing destinations from its safety backup."""
+        catalogue = self.dash_model.snap_catalogue
+        settings = getattr(catalogue, "settings", None)
+        backup_enabled = getattr(settings, "bck_before_install_enabled", None)
+
+        if backup_enabled is None:
+            catalogue.install(
+                snap,
+                clear_destination=clear_destination,
+                progress_callback=progress_callback,
+                message_callback=message_callback,
+            )
+            return app_settings.get(AppSettings.backup_before_install)
+
+        if not backup_enabled:
+            catalogue.install(
+                snap,
+                clear_destination=clear_destination,
+                progress_callback=progress_callback,
+                message_callback=message_callback,
+            )
+            return False
+
+        with catalogue_access(catalogue.path_catalogue):
+            stored_snapshot = catalogue.get_by_id(snap.id)
+            if stored_snapshot is None:
+                raise ValueError(f"No snapshot found with ID {snap.id}.")
+
+            present_folder_ids = set()
+            missing_destination = False
+            for association in stored_snapshot.directories:
+                try:
+                    mode = Path(association.original_path).stat().st_mode
+                except (FileNotFoundError, NotADirectoryError):
+                    missing_destination = True
+                    continue
+
+                if stat.S_ISDIR(mode):
+                    present_folder_ids.add(association.folder_id)
+                else:
+                    missing_destination = True
+
+            if not missing_destination:
+                catalogue.install(
+                    snap,
+                    clear_destination=clear_destination,
+                    progress_callback=progress_callback,
+                    message_callback=message_callback,
+                )
+                return True
+
+            backup_created = False
+            if present_folder_ids:
+                backup_snapshot = stored_snapshot.clone()
+                backup_snapshot.directories = [
+                    association
+                    for association in backup_snapshot.directories
+                    if association.folder_id in present_folder_ids
+                ]
+                SnapshotManager(
+                    backup_snapshot,
+                    catalogue.path_catalogue,
+                    settings,
+                ).create_backup(
+                    settings.backup_path,
+                    "preinstall",
+                    BackupType.ASSOCIATED_DIRECTORIES,
+                )
+                backup_created = True
+
+            install_settings = copy.copy(settings)
+            install_settings.backup_pre_install = False
+            install_catalogue = SnapshotCatalogue(catalogue.path_catalogue, install_settings)
+            install_catalogue.install(
+                snap,
+                clear_destination=clear_destination,
+                progress_callback=progress_callback,
+                message_callback=message_callback,
+            )
+            return backup_created
 
     def __open_config_dialog(self, edit_mode: bool, snap: Snapshot | None = None):
         """
@@ -163,10 +254,14 @@ class CatalogueController:
             if w.exec_():
                 def action(task):
                     clear_dest = app_settings.get(AppSettings.clear_snap_attached_folders_before_install)
-                    backup_before_install = app_settings.get(AppSettings.backup_before_install)
-                    self.dash_model.snap_catalogue.install(snap, clear_destination=clear_dest, progress_callback=task.update_task_progress, message_callback=task.update_task_message)
+                    backup_created = self.__install_snapshot_data(
+                        snap,
+                        clear_dest,
+                        task.update_task_progress,
+                        task.update_task_message,
+                    )
                     logger.info(f"Configuration installation {snap.name} completed.")
-                    self.__log_automatic_backup(snap, backup_before_install, "install")
+                    self.__log_automatic_backup(snap, backup_created, "install")
                     log_action(ActionCategory.CATALOGUE, ActionType.CATALOGUE_SNAPSHOT_INSTALLED, snap.name)
                 
                 self.dash_model.run_heavy_operation(
