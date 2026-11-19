@@ -6,7 +6,7 @@ from PySide6.QtWidgets import QFileDialog
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtCore import QUrl
 from loguru import logger
-from pylizlib.core.os.snap import BackupType, Snapshot, SnapshotCatalogue, SnapshotManager
+from pylizlib.core.os.snap import BackupType, SnapDirAssociation, Snapshot, SnapshotCatalogue, SnapshotManager
 from pylizlib.core.os.snap.storage.coordination import catalogue_access
 from pylizlib.qtfw.util.ui import UiUtils
 from qfluentwidgets import MessageBox
@@ -87,6 +87,26 @@ class CatalogueController:
                 f"snapshot={snap.name}; before={operation}",
             )
 
+    @staticmethod
+    def __get_present_directory_associations(
+        snapshot: Snapshot,
+    ) -> tuple[list[SnapDirAssociation], bool]:
+        present_associations: list[SnapDirAssociation] = []
+        missing_destination = False
+        for association in snapshot.directories:
+            try:
+                mode = Path(association.original_path).stat().st_mode
+            except (FileNotFoundError, NotADirectoryError):
+                missing_destination = True
+                continue
+
+            if stat.S_ISDIR(mode):
+                present_associations.append(association)
+            else:
+                missing_destination = True
+
+        return present_associations, missing_destination
+
     def __install_snapshot_data(
         self,
         snap: Snapshot,
@@ -122,19 +142,10 @@ class CatalogueController:
             if stored_snapshot is None:
                 raise ValueError(f"No snapshot found with ID {snap.id}.")
 
-            present_folder_ids = set()
-            missing_destination = False
-            for association in stored_snapshot.directories:
-                try:
-                    mode = Path(association.original_path).stat().st_mode
-                except (FileNotFoundError, NotADirectoryError):
-                    missing_destination = True
-                    continue
-
-                if stat.S_ISDIR(mode):
-                    present_folder_ids.add(association.folder_id)
-                else:
-                    missing_destination = True
+            present_associations, missing_destination = self.__get_present_directory_associations(
+                stored_snapshot
+            )
+            present_folder_ids = {association.folder_id for association in present_associations}
 
             if not missing_destination:
                 catalogue.install(
@@ -174,6 +185,53 @@ class CatalogueController:
                 message_callback=message_callback,
             )
             return backup_created
+
+    def __remove_installed_folders_with_backup(
+        self,
+        snap_id: str,
+        confirmed_paths: tuple[str, ...],
+        message_callback=None,
+    ) -> None:
+        """Back up present associated folders, then remove that exact set of paths."""
+        catalogue = self.dash_model.snap_catalogue
+        settings = getattr(catalogue, "settings", None)
+        if settings is None:
+            catalogue.remove_installed_copies(snap_id, message_callback=message_callback)
+            return
+
+        with catalogue_access(catalogue.path_catalogue):
+            stored_snapshot = catalogue.get_by_id(snap_id)
+            if stored_snapshot is None:
+                raise ValueError(f"No snapshot found with ID {snap_id}.")
+
+            current_paths = {association.original_path for association in stored_snapshot.directories}
+            if current_paths != set(confirmed_paths):
+                raise ValueError(
+                    tr("Snapshot folder associations changed after confirmation. Refresh the catalogue and try again.")
+                )
+
+            present_associations, _ = self.__get_present_directory_associations(stored_snapshot)
+            if not present_associations:
+                return
+            if settings.backup_path is None:
+                raise ValueError(tr("A backup folder must be configured before removing local folders."))
+
+            present_folder_ids = {association.folder_id for association in present_associations}
+            backup_snapshot = stored_snapshot.clone()
+            backup_snapshot.directories = [
+                association
+                for association in backup_snapshot.directories
+                if association.folder_id in present_folder_ids
+            ]
+            manager = SnapshotManager(backup_snapshot, catalogue.path_catalogue, settings)
+            manager.create_backup(
+                settings.backup_path,
+                "beforeRemoveInstalled",
+                BackupType.ASSOCIATED_DIRECTORIES,
+                message_callback=message_callback,
+            )
+            self.__log_automatic_backup(stored_snapshot, True, "remove installed folders")
+            manager.remove_installed_copies(message_callback=message_callback)
 
     def __open_config_dialog(self, edit_mode: bool, snap: Snapshot | None = None):
         """
@@ -424,10 +482,23 @@ class CatalogueController:
         """
         logger.debug(f"Installed folders deletion requested for {snap.name}")
         try:
-            w = MessageBox(tr("Delete installed folders"), tr("Are you sure you want to delete the currently installed folders for the selected snapshot?"), parent=self.view)
+            confirmed_paths = tuple(association.original_path for association in snap.directories)
+            path_list = "\n".join(f"• {path}" for path in confirmed_paths)
+            confirmation_text = tr(
+                "The following associated paths will be checked. Existing folders will be backed up before removal; missing or non-directory paths will be skipped."
+            )
+            if path_list:
+                confirmation_text = f"{confirmation_text}\n\n{path_list}"
+            else:
+                confirmation_text = f"{confirmation_text}\n\n{tr('No folders are associated with this snapshot.')}"
+            w = MessageBox(tr("Delete installed folders"), confirmation_text, parent=self.view)
             if w.exec_():
                 def action(task):
-                    self.dash_model.snap_catalogue.remove_installed_copies(snap.id, message_callback=task.update_task_message)
+                    self.__remove_installed_folders_with_backup(
+                        snap.id,
+                        confirmed_paths,
+                        message_callback=task.update_task_message,
+                    )
                     logger.info(f"Installed folders deletion for {snap.name} completed.")
                     log_action(ActionCategory.CATALOGUE, ActionType.CATALOGUE_INSTALLED_FOLDERS_DELETED, snap.name)
                 
@@ -435,7 +506,7 @@ class CatalogueController:
                     tr("Delete installed folders"),
                     tr("Deleting folders"),
                     action,
-                    success_msg_title="", success_msg="", update_dashboard=False
+                    success_msg_title="", success_msg="", update_dashboard=True
                 )
         except Exception as e:
             UiUtils.show_message(tr("Deletion error"), tr("An error occurred during deletion: {error}", error=str(e)))

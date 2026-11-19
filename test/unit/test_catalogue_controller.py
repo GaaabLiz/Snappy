@@ -33,7 +33,7 @@ def test_catalogue_controller(monkeypatch):
     # Mock DialogConfig
     dl_mod = types.ModuleType("snappy.view.catalogue_imp_dialog")
     class FakeSnapshot:
-        def __init__(self, id, name): self.id = id; self.name = name
+        def __init__(self, id, name): self.id = id; self.name = name; self.directories = []
     class FakeDialogConfig:
         res = True
         def __init__(self, d, e, s): self.output_data = FakeSnapshot("d1", "D1")
