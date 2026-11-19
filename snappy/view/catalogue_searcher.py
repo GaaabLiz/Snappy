@@ -84,6 +84,12 @@ class CatalogueSearcherView(SnappyQFrame):
 
         self.snapshot_button = TransparentDropDownPushButton(tr("Snapshot"), self, FluentIcon.FOLDER)
         self.snapshot_menu = CheckableMenu(parent=self)
+        self._snapshot_actions = {}
+        self._snapshot_action_order = []
+        self.action_all_snapshots = Action(tr("All Snapshots"), self.snapshot_menu, checkable=True)
+        self.action_all_snapshots.triggered.connect(self._on_all_snapshots_triggered)
+        self.snapshot_menu.addAction(self.action_all_snapshots)
+        self.snapshot_menu.addSeparator()
         self.snapshot_button.setMenu(self.snapshot_menu)
 
         self.view_button = TransparentDropDownPushButton(tr("View"), self, FluentIcon.VIEW)
@@ -491,32 +497,33 @@ class CatalogueSearcherView(SnappyQFrame):
 
         snapshot_names = {snapshot.id: snapshot.name for snapshot in snapshots}
 
-        if not hasattr(self, '_snapshot_actions'):
-            self._snapshot_actions = {}
-            
-        current_snapshot_ids = set(self._snapshot_actions.keys())
-        new_snapshot_ids = set(s.id for s in snapshots)
-        
-        # Only rebuild the menu if the available snapshots have changed or menu is missing
-        if current_snapshot_ids != new_snapshot_ids or not hasattr(self, 'action_all_snapshots'):
-            self.snapshot_menu = CheckableMenu(parent=self)
-            self._snapshot_actions = {}
+        snapshot_ids = [snapshot.id for snapshot in snapshots]
+        current_snapshot_ids = set(self._snapshot_actions)
+        new_snapshot_ids = set(snapshot_ids)
 
-            self.action_all_snapshots = Action(tr("All Snapshots"), self, checkable=True)
-            self.action_all_snapshots.triggered.connect(self._on_all_snapshots_triggered)
-            self.snapshot_menu.addAction(self.action_all_snapshots)
-            
-            self.snapshot_menu.addSeparator()
-            
-            for snapshot in snapshots:
-                action = Action(snapshot.name, self, checkable=True)
-                def make_handler(snap_id):
-                    return lambda: self._on_single_snapshot_triggered(snap_id)
-                action.triggered.connect(make_handler(snapshot.id))
-                self.snapshot_menu.addAction(action)
+        for snap_id in current_snapshot_ids - new_snapshot_ids:
+            action = self._snapshot_actions.pop(snap_id)
+            self.snapshot_menu.removeAction(action)
+            action.setParent(None)
+            action.deleteLater()
+
+        for snapshot in snapshots:
+            action = self._snapshot_actions.get(snapshot.id)
+            if action is None:
+                action = Action(snapshot.name, self.snapshot_menu, checkable=True)
+                action.triggered.connect(
+                    lambda checked=False, snap_id=snapshot.id: self._on_single_snapshot_triggered(snap_id)
+                )
                 self._snapshot_actions[snapshot.id] = action
 
-            self.snapshot_button.setMenu(self.snapshot_menu)
+            action.setText(snapshot.name)
+
+        if self._snapshot_action_order != snapshot_ids:
+            for snap_id in snapshot_ids:
+                action = self._snapshot_actions[snap_id]
+                self.snapshot_menu.removeAction(action)
+                self.snapshot_menu.addAction(action)
+            self._snapshot_action_order = snapshot_ids
 
         # Update checked states silently
         self.action_all_snapshots.blockSignals(True)
