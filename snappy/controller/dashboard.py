@@ -81,8 +81,7 @@ class DashboardController:
         self.catalogue.update_data(snap_data)
         self.home.update_data(snap_data)
         self.searcher.update_snapshots(data.snapshots)
-        if data.backups is not None:
-            self.backup.update_data(data.backups)
+        self.backup.update_data(data.backups if data.backups is not None else [])
         if self.history.view.isVisible():
             self.history.reload()
 
@@ -160,6 +159,7 @@ class DashboardController:
         self.model.signal_on_update_already_running.connect(self.__handle_update_already_running)
         self.model.signal_on_updated_data_available.connect(self.__handle_data_updated)
         self.model.signal_on_catalogue_invalidated.connect(self.__handle_catalogue_invalidated)
+        self.settings.model.backup_path_updated.connect(lambda _: self.backup.update_data([]))
         self.model.signal_on_update_progress.connect(self.__handle_update_progress)
         self.model.signal_on_update_text.connect(self.__handle_update_text)
         self.model.signal_on_update_detail_text.connect(self.__handle_update_detail_text)

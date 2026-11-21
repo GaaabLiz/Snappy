@@ -41,6 +41,11 @@ class BackupController(QObject):
         self.model.set_backups(backups)
         self.view.reload_data()
 
+    def _require_current_backup(self, backup: SnapshotBackupInfo):
+        """Reject an action that still references the previous backup folder."""
+        if backup.path.parent != self.snap_catalogue.settings.backup_path:
+            raise ValueError(tr("The backup folder changed. Select a backup from the current folder."))
+
     def __handle_open(self, backup: SnapshotBackupInfo):
         """
         Opens the directory containing the specified backup in the system's file explorer.
@@ -49,8 +54,9 @@ class BackupController(QObject):
             backup (SnapshotBackupInfo): Information about the backup to locate.
         """
         logger.info(f"Opening backup folder in file system: {backup.file_name}")
-        folder = backup.path.parent
         try:
+            self._require_current_backup(backup)
+            folder = backup.path.parent
             QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder)))
             log_action(ActionCategory.BACKUPS, ActionType.BACKUP_OPENED_IN_FINDER, backup.file_name)
         except Exception as e:
@@ -76,6 +82,7 @@ class BackupController(QObject):
             return
 
         def action(task):
+            self._require_current_backup(backup)
             task.update_task_message(backup.file_name)
             logger.info(f"Restoring backup {backup.file_name}...")
             self.snap_catalogue.restore_backup(backup.path)
@@ -110,6 +117,7 @@ class BackupController(QObject):
             return
 
         def action(task):
+            self._require_current_backup(backup)
             task.update_task_message(backup.file_name)
             logger.info(f"Deleting backup {backup.file_name}...")
             self.snap_catalogue.delete_backup(backup.path)

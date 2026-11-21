@@ -54,6 +54,9 @@ _translations: dict[str, dict[str, str]] = {
     'Heaviest File': {'it': 'File più Pesante'},
     'No file found': {'it': 'Nessun file trovato'},
     'Unavailable': {'it': 'Non disponibile'},
+    'The backup folder changed. Select a backup from the current folder.': {
+        'it': 'La cartella dei backup è cambiata. Seleziona un backup dalla cartella corrente.'
+    },
     'Catalogue': {'it': 'Catalogo'},
     'Import': {'it': 'Importa'},
     'Import ZIP': {'it': 'Importa ZIP'},
