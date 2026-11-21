@@ -1,5 +1,8 @@
 import sys
 from PySide6.QtCore import QEventLoop, QTimer
+from pylizlib.qtfw.util.ui import UiUtils
+
+from snappy.application.i18n import tr
 from snappy.model.splash import SplashModel
 from snappy.view.splash import SplashWindow
 
@@ -51,6 +54,14 @@ class SplashController:
             catalogue_path_str = self.model.get_catalogue_path_str()
 
             if self.view.show_catalogue_error_dialog(catalogue_path_str):
-                self.model.set_default_catalogue_path()
+                try:
+                    self.model.set_default_catalogue_path()
+                except OSError as error:
+                    UiUtils.show_message(
+                        tr("Catalogue Error"),
+                        tr("Could not create the default catalogue. {error}", error=str(error)),
+                        self.view,
+                    )
+                    sys.exit(1)
             else:
                 sys.exit(0)

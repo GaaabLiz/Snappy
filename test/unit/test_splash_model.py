@@ -48,9 +48,22 @@ def test_splash_model_get_catalogue_path_str(monkeypatch):
     splash_module.app_settings.set("catalogue_path", "/foo/bar")
     assert model.get_catalogue_path_str() == "/foo/bar"
 
-def test_splash_model_set_default_catalogue_path(monkeypatch):
+def test_splash_model_set_default_catalogue_path(monkeypatch, tmp_path):
     splash_module = _import_splash_module(monkeypatch)
     model = splash_module.SplashModel()
+    default = tmp_path / "Catalogue"
+    monkeypatch.setattr(splash_module, "DEFAULT_SETTING_CATALOGUE_PATH", str(default))
     
     model.set_default_catalogue_path()
-    assert splash_module.app_settings.get("catalogue_path") == "/default/path"
+    assert default.is_dir()
+    assert splash_module.app_settings.get("catalogue_path") == str(default)
+
+
+def test_first_launch_creates_the_default_catalogue(monkeypatch, tmp_path):
+    splash_module = _import_splash_module(monkeypatch)
+    default = tmp_path / "Catalogue"
+    monkeypatch.setattr(splash_module, "DEFAULT_SETTING_CATALOGUE_PATH", str(default))
+    splash_module.app_settings.set("catalogue_path", str(default))
+
+    assert splash_module.SplashModel().check_catalogue_path()
+    assert default.is_dir()

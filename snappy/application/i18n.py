@@ -466,6 +466,9 @@ _translations: dict[str, dict[str, str]] = {
     'Deleting folders': {'it': 'Eliminazione cartelle in corso'},
     'Updating folders': {'it': 'Aggiornamento cartelle in corso'},
     'Updating dashboard data...': {'it': 'Aggiornamento dati della dashboard...'},
+    'Could not create the default catalogue. {error}': {
+        'it': 'Impossibile creare il catalogo predefinito. {error}'
+    },
     'Reload the new catalogue with F5 before starting operations.': {
         'it': 'Ricarica il nuovo catalogo con F5 prima di avviare altre operazioni.'
     },
