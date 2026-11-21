@@ -1,5 +1,6 @@
 import sys
 import types
+from datetime import timedelta
 from pathlib import Path
 from unittest.mock import Mock, create_autospec
 
@@ -224,6 +225,7 @@ def test_catalogue_controller(monkeypatch, tmp_path):
     externally_edited = snap.clone()
     externally_edited.name = "Concurrent name"
     externally_edited.data["visible"] = "concurrent value"
+    externally_edited.date_created += timedelta(seconds=1)  # Legacy JSON can omit this timestamp.
     form_data.update(name=snap.name, custom_data={"visible": "old", "unset": ""})
     catalogue.get_by_id.return_value = externally_edited
     ctrl.view.signal_edit_requested.emit(snap)

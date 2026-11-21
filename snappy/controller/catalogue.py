@@ -103,7 +103,7 @@ class CatalogueController:
 
         with catalogue_access(catalogue.path_catalogue):
             current = catalogue.get_by_id(original.id)
-            if current is None or current.date_created != original.date_created:
+            if current is None:
                 raise ValueError(conflict)
             if any(getattr(current, key) not in (getattr(original, key), value) for key, value in fields.items()):
                 raise ValueError(conflict)
