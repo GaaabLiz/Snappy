@@ -204,6 +204,7 @@ _translations: dict[str, dict[str, str]] = {
         )
     },
     'The folder no longer exists in {path}': {'it': 'La cartella non esiste più in {path}'},
+    'This snapshot is no longer in the catalogue.': {'it': 'Lo snapshot non è più disponibile nel catalogo.'},
     'Catalogue Search': {'it': 'Ricerca nel Catalogo'},
     'Snapshot': {'it': 'Snapshot'},
     'All Snapshots': {'it': 'Tutti gli snapshot'},

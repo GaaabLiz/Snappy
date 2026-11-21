@@ -5,7 +5,7 @@ from PySide6.QtWidgets import QFileDialog, QInputDialog
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtCore import QUrl
 from loguru import logger
-from pylizlib.core.os.snap import Snapshot, SnapshotUpdateResult
+from pylizlib.core.os.snap import Snapshot, SnapshotBusyError, SnapshotUpdateResult
 from pylizlib.core.os.snap.storage.coordination import catalogue_access
 from pylizlib.core.os.snap.storage.install_registry import InstalledCopyRegistry
 from pylizlib.core.os.system import get_system_username
@@ -317,7 +317,16 @@ class CatalogueController:
         Args:
             snap (Snapshot): The snapshot whose directory will be opened.
         """
-        path = self.dash_model.snap_catalogue.get_snap_directory_path(snap)
+        try:
+            path = self.dash_model.snap_catalogue.get_snap_directory_path(snap)
+        except (OSError, SnapshotBusyError) as error:
+            logger.warning("Cannot locate the snapshot folder: {}", error)
+            UiUtils.show_message(tr("Warning"), str(error), self.view)
+            return
+        if path is None:
+            UiUtils.show_message(tr("Warning"), tr("This snapshot is no longer in the catalogue."), self.view)
+            self.dash_model.update()
+            return
         self.__open_directory(path)
 
     def __duplicate_snapshot(self, snap: Snapshot):

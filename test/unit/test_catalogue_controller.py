@@ -270,6 +270,16 @@ def test_catalogue_controller(monkeypatch, tmp_path):
     ctrl.view.signal_open_folder_requested.emit(snap)
     assert "no longer exists" in msgs[-1]
     Path.exists = old_exists
+
+    lookup = catalogue.get_snap_directory_path
+    catalogue.get_snap_directory_path = Mock(return_value=None)
+    ctrl.dash_model.update = Mock()
+    opened_before = list(opened)
+    ctrl.view.signal_open_folder_requested.emit(snap)
+    assert "no longer in the catalogue" in msgs[-1]
+    assert opened == opened_before
+    ctrl.dash_model.update.assert_called_once_with()
+    catalogue.get_snap_directory_path = lookup
     
     # __duplicate_snapshot
     ctrl.view.signal_duplicate_requested.emit(snap)
