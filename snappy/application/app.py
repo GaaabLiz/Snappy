@@ -115,8 +115,7 @@ class AppSettings(QConfig):
     git_bash_path = QtFwQConfigItem(True, SETTING_GROUP_SCRIPTS, "Git Bash path", DEFAULT_SETTING_PATH_GIT_BASH, ExecutableValidator())
     starred_dirs = QtFwQConfigItem(True, SETTING_GROUP_FAVORITES,"Cartelle preferite", DEFAULT_SETTING_STARRED_DIRS, TextListValidator())
     starred_files = QtFwQConfigItem(True, SETTING_GROUP_FAVORITES,"File preferiti", DEFAULT_SETTING_STARRED_FILES, TextListValidator())
-    # Legacy preferences retained for potential reactivation, but intentionally
-    # excluded from AppSettings so they are absent from the live JSON config.
+    # Eseguibili e servizi non sono impostazioni attive né vengono serializzati.
     # starred_exes = QtFwQConfigItem(True, SETTING_GROUP_FAVORITES, "Eseguibili Preferiti", DEFAULT_SETTING_STARRED_EXES, TextListValidator())
     # starred_services = QtFwQConfigItem(True, SETTING_GROUP_FAVORITES, "Servizi Preferiti", DEFAULT_SETTING_STARRED_SERVICES, TextListValidator())
     debug_test_mode = QtFwQConfigItem(False, SETTING_GROUP_APP, "DebugTestMode", False, BoolValidator())

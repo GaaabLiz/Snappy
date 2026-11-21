@@ -274,56 +274,47 @@ class WidgetSettings(SnappyQFrame):
             dialog_file_filter=tr("All Files (*.*)")
         )
 
+        # Eseguibili e servizi sono disabilitati nell'interfaccia.
+        # setting_fav_exe = AppSettings.starred_exes
+        # self.card_fav_exes = MasterListSettingCard(
+        #     config_item=setting_fav_exe,
+        #     item_type=MasterListSettingCard.Type.FILE,
+        #     card_title=tr("Starred executables"),
+        #     card_icon=FluentIcon.APPLICATION,
+        #     main_btn=PushButton(tr("Choose an executable"), self),
+        #     card_content=tr("Add one or more starred executables to monitor on the home screen"),
+        #     parent=self if setting_fav_exe.enabled else None,
+        #     dialog_title=tr("Select executable"),
+        #     dialog_file_filter=tr("Executable Files (*.exe);;All Files (*.*)"),
+        # )
+        # setting_fav_services = AppSettings.starred_services
+        # self.card_fav_services = MasterListSettingCard(
+        #     config_item=setting_fav_services,
+        #     item_type=MasterListSettingCard.Type.TEXT,
+        #     card_title=tr("Starred services"),
+        #     card_icon=FluentIcon.SETTING,
+        #     main_btn=PushButton(tr("Add service"), self),
+        #     card_content=tr("Add one or more Windows services to monitor on the home screen"),
+        #     parent=self if setting_fav_services.enabled else None,
+        #     dialog_title=tr("Add service"),
+        #     dialog_content=tr("Enter the Windows service name (e.g. Spooler)"),
+        #     dialog_button_yes=tr("Add"),
+        #     dialog_button_no=tr("Cancel"),
+        #     dialog_error=tr("The service name cannot be empty or already existing"),
+        #     deletion_title=tr("Confirm deletion"),
+        #     deletion_content=tr("Are you sure you want to delete this service?"),
+        # )
+
         self.__install_tooltip(self.card_fav_dirs, tr("Manage your favorite folders for quick access"))
         self.__install_tooltip(self.card_fav_files, tr("Manage your favorite files for quick access"))
+        # self.__install_tooltip(self.card_fav_exes, tr("Manage your favorite executables to monitor their status"))
+        # self.__install_tooltip(self.card_fav_services, tr("Manage the Windows services you want to monitor"))
 
         grp_manager = SettingGroupManager(tr("Favorites"), self)
         grp_manager.add_widget(setting_fav_dirs, self.card_fav_dirs, None)
         grp_manager.add_widget(setting_fav_files, self.card_fav_files, None)
-        grp_manager.install_group_on(layout)
-
-    def __add_legacy_executable_service_favorites(self, layout: QVBoxLayout):
-        """Keep the retired controls for possible reactivation; this method is not called.
-
-        The matching AppSettings items must also be restored before reactivating it.
-        """
-        setting_fav_exe = AppSettings.starred_exes
-        self.card_fav_exes = MasterListSettingCard(
-            config_item=setting_fav_exe,
-            item_type=MasterListSettingCard.Type.FILE,
-            card_title=tr("Starred executables"),
-            card_icon=FluentIcon.APPLICATION,
-            main_btn=PushButton(tr("Choose an executable"), self),
-            card_content=tr("Add one or more starred executables to monitor on the home screen"),
-            parent=self if setting_fav_exe.enabled else None,
-            dialog_title=tr("Select executable"),
-            dialog_file_filter=tr("Executable Files (*.exe);;All Files (*.*)"),
-        )
-
-        setting_fav_services = AppSettings.starred_services
-        self.card_fav_services = MasterListSettingCard(
-            config_item=setting_fav_services,
-            item_type=MasterListSettingCard.Type.TEXT,
-            card_title=tr("Starred services"),
-            card_icon=FluentIcon.SETTING,
-            main_btn=PushButton(tr("Add service"), self),
-            card_content=tr("Add one or more Windows services to monitor on the home screen"),
-            parent=self if setting_fav_services.enabled else None,
-            dialog_title=tr("Add service"),
-            dialog_content=tr("Enter the Windows service name (e.g. Spooler)"),
-            dialog_button_yes=tr("Add"),
-            dialog_button_no=tr("Cancel"),
-            dialog_error=tr("The service name cannot be empty or already existing"),
-            deletion_title=tr("Confirm deletion"),
-            deletion_content=tr("Are you sure you want to delete this service?"),
-        )
-
-        self.__install_tooltip(self.card_fav_exes, tr("Manage your favorite executables to monitor their status"))
-        self.__install_tooltip(self.card_fav_services, tr("Manage the Windows services you want to monitor"))
-
-        grp_manager = SettingGroupManager(tr("Favorites"), self)
-        grp_manager.add_widget(setting_fav_exe, self.card_fav_exes, None)
-        grp_manager.add_widget(setting_fav_services, self.card_fav_services, None)
+        # grp_manager.add_widget(setting_fav_exe, self.card_fav_exes, None)
+        # grp_manager.add_widget(setting_fav_services, self.card_fav_services, None)
         grp_manager.install_group_on(layout)
 
 
