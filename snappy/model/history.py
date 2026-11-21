@@ -38,6 +38,7 @@ class ActionType(str, Enum):
     CATALOGUE_SNAPSHOT_DELETED = "catalogue.snapshot.deleted"
     CATALOGUE_SNAPSHOT_DUPLICATED = "catalogue.snapshot.duplicated"
     CATALOGUE_SNAPSHOT_EXPORTED = "catalogue.snapshot.exported"
+    CATALOGUE_SNAPSHOTS_IMPORTED = "catalogue.snapshots.imported"
     CATALOGUE_ASSOCIATED_FOLDERS_EXPORTED = "catalogue.associated.folders.exported"
     CATALOGUE_INSTALLED_FOLDERS_DELETED = "catalogue.installed.folders.deleted"
     CATALOGUE_ASSOCIATED_FOLDERS_UPDATED = "catalogue.associated.folders.updated"

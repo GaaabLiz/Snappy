@@ -1,4 +1,9 @@
+import json
+from zipfile import ZipFile
+
+import pytest
 from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QFileDialog, QInputDialog
 
 from snappy.domain.data import SnappyData
 from snappy.view.catalogue_imp_dialog import DialogConfig
@@ -76,3 +81,46 @@ def test_catalogue_import_dialog_e2e(qtbot, monkeypatch, tmp_path):
     assert getattr(dialog, 'output_data', None) is not None
     assert dialog.output_data['name'] == "Test Config"
     assert dialog.output_data['desc'] == "Test Description"
+
+
+@pytest.mark.parametrize("batch", [False, True])
+def test_import_zip_action_migrates_a_legacy_snapshot(qtbot, monkeypatch, tmp_path, batch):
+    from snappy.application.app import AppSettings, app_settings
+    from snappy.controller.catalogue import CatalogueController
+    from snappy.model.dashboard import DashboardModel
+
+    previous_path = app_settings.get(AppSettings.catalogue_path)
+    app_settings.set(AppSettings.catalogue_path, str(tmp_path / "catalogue"))
+    try:
+        dashboard = DashboardModel()
+        monkeypatch.setattr(dashboard.snap_catalogue.settings, "allow_unverified_legacy_snapshots", True)
+        controller = CatalogueController(dashboard)
+        qtbot.addWidget(controller.view)
+        controller.init()
+
+        zip_path = tmp_path / "legacy.zip"
+        prefix = "legacy/" if batch else ""
+        metadata = {
+            "id": "legacy",
+            "name": "Legacy",
+            "desc": "",
+            "directories": [{"index": 1, "folder_id": "stable", "original_path": str(tmp_path / "data")}],
+        }
+        with ZipFile(zip_path, "w") as archive:
+            archive.writestr(f"{prefix}snapshot.json", json.dumps(metadata))
+            archive.writestr(f"{prefix}1-data/settings.txt", b"legacy content")
+
+        monkeypatch.setattr(QInputDialog, "getItem", lambda _parent, _title, _text, options, *_: (options[batch], True))
+        monkeypatch.setattr(QFileDialog, "getOpenFileName", lambda *_: (str(zip_path), ""))
+        errors = []
+        dashboard.signal_on_heavy_operation_error.connect(lambda _title, error: errors.append(error))
+        with qtbot.waitSignal(dashboard.signal_on_update_complete, timeout=5000):
+            controller.view.action_import.trigger()
+
+        assert errors == []
+        (snapshot,) = dashboard.cached_data.snapshots
+        assert snapshot.id == "legacy"
+        assert snapshot.directories[0].integrity_manifest["settings.txt"]["size"] == len(b"legacy content")
+        dashboard.runner.thread_pool.waitForDone()
+    finally:
+        app_settings.set(AppSettings.catalogue_path, previous_path)

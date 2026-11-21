@@ -183,7 +183,7 @@ class HelpModel(QObject):
                    "1. Setup & Environment\n"
                    "Start in the Settings screen. Define a robust Catalogue path (preferably on a fast drive). Set up your standard 'Tags' (e.g., 'Production', 'Testing', 'Broken') so you don't have to type them manually every time.\n\n"
                    "2. Capture Base States\n"
-                   "Once your local project is working perfectly, open the Catalogue and 'Import' a new snapshot. Give it a descriptive name and tag it as 'Base' or 'Stable'. This is your anchor.\n\n"
+                   "Once your local project is working perfectly, open the Catalogue and choose 'Create configuration'. Give it a descriptive name and tag it as 'Base' or 'Stable'. This is your anchor.\n\n"
                    "3. Branching and Experimentation\n"
                    "When you need to test a risky change, 'Duplicate' your base snapshot in the Catalogue. Install the duplicate. You can now break things locally. If it fails, simply re-install the 'Stable' snapshot to instantly revert. If it succeeds, use 'Update with local' to save the new successful state.\n\n"
                    "4. Auditing and Maintenance\n"

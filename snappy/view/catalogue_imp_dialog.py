@@ -84,7 +84,7 @@ class DialogConfig(QDialog):
         :return: A localized string for the dialog title.
         """
         if not self.edit_mode:
-            return tr("Import")
+            return tr("Create configuration")
         config_name = self.edit_data.name if self.edit_data else ""
         return tr("Edit a configuration") + (f": {config_name}" if config_name else "")
 

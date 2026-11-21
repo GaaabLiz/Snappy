@@ -22,8 +22,11 @@ def test_catalogue_controller(monkeypatch, tmp_path):
     # Mock QFileDialog
     class FakeQFileDialog:
         ret = "/some/dir"
+        zip_file = "/some/example.zip"
         @classmethod
         def getExistingDirectory(cls, *args): return cls.ret
+        @classmethod
+        def getOpenFileName(cls, *args): return cls.zip_file, ""
     monkeypatch.setattr("PySide6.QtWidgets.QFileDialog", FakeQFileDialog)
 
     class FakeQInputDialog:
@@ -95,6 +98,7 @@ def test_catalogue_controller(monkeypatch, tmp_path):
     class FakeView:
         def __init__(self, m):
             self.m = m
+            self.signal_create_requested = FakeSignal()
             self.signal_import_requested = FakeSignal()
             self.signal_open_catalogue_folder_requested = FakeSignal()
             self.signal_install_requested = FakeSignal()
@@ -138,8 +142,11 @@ def test_catalogue_controller(monkeypatch, tmp_path):
     class FakeCat:
         def __init__(self):
             self.path_catalogue = tmp_path / "catalogue"
+            self.get_all = Mock()
             self.get_by_id = Mock()
             self.create_snapshot = Mock(return_value=FakeSnapshot("d1", "D1"))
+            self.import_snapshot = Mock()
+            self.import_catalogue = Mock()
             self.update_snapshot_with_result = Mock(return_value=types.SimpleNamespace(
                 snapshot=FakeSnapshot("s1", "Edited"), backup_path=Path("/backups/edit.zip"),
             ))
@@ -180,14 +187,30 @@ def test_catalogue_controller(monkeypatch, tmp_path):
     catalogue.get_by_id.return_value = snap
     
     from snappy.model.history import ActionType
-    # __open_config_dialog (edit_mode=False) -> signal_import_requested
-    ctrl.view.signal_import_requested.emit()
+    # The create form captures local folders.
+    ctrl.view.signal_create_requested.emit()
     catalogue.create_snapshot.assert_called_once_with(
         snap_id="d1", name="D1", desc="Description", author="Author", tags=["test"],
         directory_paths=["/source/one"], data={"visible": "value"},
         progress_callback=task.update_task_progress, message_callback=task.update_task_message,
     )
     assert actions[-1][1] == ActionType.CATALOGUE_SNAPSHOT_CREATED
+
+    # ZIP import goes through the corresponding library entry points.
+    ctrl.view.signal_import_requested.emit()
+    catalogue.import_snapshot.assert_called_once_with(Path(FakeQFileDialog.zip_file))
+    assert actions[-1][1:] == (ActionType.CATALOGUE_SNAPSHOTS_IMPORTED, "example.zip (1)")
+    FakeQInputDialog.source_index = 1
+    catalogue.get_all.side_effect = [[snap], [snap, FakeSnapshot("s2", "Imported")]]
+    ctrl.view.signal_import_requested.emit()
+    catalogue.import_catalogue.assert_called_once_with(Path(FakeQFileDialog.zip_file))
+    assert actions[-1][1:] == (ActionType.CATALOGUE_SNAPSHOTS_IMPORTED, "example.zip (1)")
+    FakeQInputDialog.source_index = 0
+    filename = FakeQFileDialog.zip_file
+    FakeQFileDialog.zip_file = ""
+    ctrl.view.signal_import_requested.emit()
+    assert catalogue.import_snapshot.call_count == 1
+    FakeQFileDialog.zip_file = filename
     
     # __open_config_dialog (edit_mode=True) -> signal_edit_requested
     ctrl.view.signal_edit_requested.emit(snap)
@@ -333,7 +356,7 @@ def test_catalogue_controller(monkeypatch, tmp_path):
     
     # test cancel modal / dialogs
     FakeDialogConfig.res = False
-    ctrl.view.signal_import_requested.emit() # does nothing
+    ctrl.view.signal_create_requested.emit() # does nothing
     
     FakeMessageBox.res = False
     ctrl.view.signal_install_requested.emit(snap)
@@ -359,7 +382,7 @@ def test_catalogue_controller(monkeypatch, tmp_path):
     
     old_exec = FakeDialogConfig.exec
     FakeDialogConfig.exec = error_action
-    ctrl.view.signal_import_requested.emit() # caught, no assert
+    ctrl.view.signal_create_requested.emit() # caught, no assert
     FakeDialogConfig.exec = old_exec
     
     FakeMessageBox.exec_ = lambda self: False
