@@ -1,10 +1,9 @@
-from pathlib import Path
 from PySide6.QtCore import Qt
 
 from snappy.domain.data import SnappyData
 from snappy.view.catalogue_imp_dialog import DialogConfig
 
-def test_catalogue_import_dialog_e2e(qtbot, monkeypatch):
+def test_catalogue_import_dialog_e2e(qtbot, monkeypatch, tmp_path):
     """
     Test E2E for the Catalogue Import Dialog.
     Navigates to the details tab, inputs text, tests validation, and clicks create.
@@ -17,7 +16,7 @@ def test_catalogue_import_dialog_e2e(qtbot, monkeypatch):
     # Empty data
     data = SnappyData(monitored_software=[], monitored_services=None, snapshots=[])
 
-    dialog = DialogConfig(snappy_data=data, edit_mode=False)
+    dialog = DialogConfig(snappy_data=data, edit_mode=False, catalogue_path=tmp_path / "catalogue")
     qtbot.addWidget(dialog)
 
     # Show the dialog but don't block the event loop with exec()
@@ -55,9 +54,20 @@ def test_catalogue_import_dialog_e2e(qtbot, monkeypatch):
     # Click tags input to trigger the no-tags MessageBox
     qtbot.mouseClick(details_tab.form_tags_input, Qt.LeftButton)
     
-    # Add a directory to pass validation
+    # pytest uses a system temporary directory. Exercise the destination checks
+    # with their normal overlap logic and a local test root.
+    monkeypatch.setattr("pylizlib.core.os.snap.operations.destinations.is_critical_system_path", lambda _: False)
     directories_tab = dialog._DialogConfig__tabs.tab_directories
-    directories_tab.add_directory(Path("/tmp/some_dir"), execute_checks=False)
+    source = tmp_path / "source"
+    child = source / "child"
+    child.mkdir(parents=True)
+    directories_tab.add_directory(source)
+    directories_tab.add_directory(child)
+    qtbot.mouseClick(dialog.btn_create, Qt.LeftButton)
+    assert dialog.output_data is None
+    assert "cannot be coincident or nested" in messages[-1]
+
+    directories_tab._TabDirectories__delete_selected_item(directories_tab.listWidget.item(1))
     
     # Click the create button again
     qtbot.mouseClick(dialog.btn_create, Qt.LeftButton)

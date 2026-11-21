@@ -123,6 +123,9 @@ _translations: dict[str, dict[str, str]] = {
     'Error': {'it': 'Errore'},
     'An error occurred while creating the data.': {'it': 'Si è verificato un errore durante la creazione dei dati.'},
     "The 'Name' field cannot be empty.": {'it': "Il campo 'Nome' non può essere vuoto."},
+    'The selected folders cannot be used for installation. {error}': {
+        'it': 'Le cartelle selezionate non possono essere usate per l’installazione. {error}'
+    },
     'At least one folder must be associated with the configuration.': {'it': 'Deve essere associata almeno una cartella alla configurazione.'},
     'ID:': {'it': 'ID:'},
     'Name:': {'it': 'Nome:'},

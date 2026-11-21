@@ -59,7 +59,7 @@ def test_catalogue_controller(monkeypatch, tmp_path):
     }
     class FakeDialogConfig:
         res = True
-        def __init__(self, d, e, s): self.output_data = form_data
+        def __init__(self, d, e, s, *, catalogue_path): self.output_data = form_data
         def exec(self): return self.res
     dl_mod.DialogConfig = FakeDialogConfig
     monkeypatch.setitem(sys.modules, "snappy.view.catalogue_imp_dialog", dl_mod)

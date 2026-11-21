@@ -130,7 +130,10 @@ class CatalogueController:
             snap (Snapshot | None): The snapshot to edit if edit_mode is True, otherwise None.
         """
         log_action(ActionCategory.CATALOGUE, ActionType.CATALOGUE_CONFIG_DIALOG_OPENED, "edit" if edit_mode else "create")
-        dialog = DialogConfig(self.dash_model.cached_data, edit_mode, snap)
+        dialog = DialogConfig(
+            self.dash_model.cached_data, edit_mode, snap,
+            catalogue_path=self.dash_model.snap_catalogue.path_catalogue,
+        )
         try:
             if dialog.exec():
                 raw_data = dialog.output_data

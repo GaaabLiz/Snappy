@@ -1,11 +1,14 @@
 import re
+from pathlib import Path
 
 from PySide6.QtCore import Signal, Qt
 from PySide6.QtWidgets import QDialog, QVBoxLayout
 from pylizlib.core.os.snap import Snapshot
+from pylizlib.core.os.snap.operations.destinations import validate_destructive_destinations
 from pylizlib.qtfw.util.ui import UiUtils
 from qfluentwidgets import FluentStyleSheet, PushButton, PrimaryPushButton
 
+from snappy.application.app import AppSettings, app_settings
 from snappy.domain.data import SnappyData
 from snappy.view.catalogue_imp_tabs import DialogConfigTabs
 from snappy.application.i18n import tr
@@ -24,7 +27,9 @@ class DialogConfig(QDialog):
             snappy_data: SnappyData,
             edit_mode: bool = False,
             edit_data: Snapshot | None = None,
-            parent=None
+            parent=None,
+            *,
+            catalogue_path: Path | None = None,
     ):
         """
         Initialize the DialogConfig window.
@@ -33,6 +38,7 @@ class DialogConfig(QDialog):
         :param edit_mode: True if editing an existing snapshot, False for creating a new one.
         :param edit_data: The snapshot data to edit, required if edit_mode is True.
         :param parent: The parent widget.
+        :param catalogue_path: Current catalogue root for installation destination checks.
         """
         super().__init__(parent)
 
@@ -41,6 +47,7 @@ class DialogConfig(QDialog):
         self.edit_data: Snapshot | None = edit_data
         self.snappy_data = snappy_data
         self.output_data: dict | None = None
+        self.catalogue_path = catalogue_path or Path(app_settings.get(AppSettings.catalogue_path))
 
         # Global dialog settings
         self.setWindowTitle(self.__get_dialog_text())
@@ -152,7 +159,23 @@ class DialogConfig(QDialog):
         if not data["directories"] or len(data["directories"]) == 0:
             UiUtils.show_message(tr("Error"), tr("At least one folder must be associated with the configuration."), self)
             return
-            
+
+        if not self.edit_mode or data["directories_changed"]:
+            try:
+                validate_destructive_destinations(
+                    ((str(number), path) for number, path in enumerate(data["directories"], 1)),
+                    catalogue_path=self.catalogue_path,
+                    origin_os=self.edit_data.os_created if self.edit_data else None,
+                    operation="install snapshot",
+                )
+            except (OSError, RuntimeError, ValueError) as error:
+                UiUtils.show_message(
+                    tr("Error"),
+                    tr("The selected folders cannot be used for installation. {error}", error=str(error)),
+                    self,
+                )
+                return
+
         self.signal_payload.emit(data, self.edit_mode)
         self.output_data = data
         self.accept()
