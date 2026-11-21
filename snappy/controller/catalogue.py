@@ -52,7 +52,8 @@ class CatalogueController:
 
         Connects UI interactions (buttons, context menus) to their respective handler methods.
         """
-        self.view.signal_import_requested.connect(lambda: self.__open_config_dialog(False, None))
+        self.view.signal_create_requested.connect(lambda: self.__open_config_dialog(False, None))
+        self.view.signal_import_requested.connect(self.__import_zip)
         self.view.signal_open_catalogue_folder_requested.connect(self.__open_catalogue_directory)
         self.view.signal_install_requested.connect(self.__install_snapshot)
         self.view.signal_edit_requested.connect(self.__edit_snapshot)
@@ -179,6 +180,46 @@ class CatalogueController:
                 )
         except Exception as e:
             logger.error(f"Error executing dialog: {e}")
+
+    def __import_zip(self):
+        """Import a snapshot or catalogue archive using the corresponding library workflow."""
+        single = tr("Single snapshot")
+        batch = tr("Whole catalogue")
+        kind, accepted = QInputDialog.getItem(
+            self.view, tr("Import ZIP"), tr("Choose the archive type"), [single, batch], 0, False
+        )
+        if not accepted:
+            return
+        filename, _ = QFileDialog.getOpenFileName(
+            self.view, tr("Select a ZIP archive"), str(app.path), tr("ZIP archives (*.zip)")
+        )
+        if not filename:
+            return
+        archive = Path(filename)
+        catalogue = self.dash_model.snap_catalogue
+
+        def action(task):
+            task.update_task_message(archive.name)
+            if kind == single:
+                catalogue.import_snapshot(archive)
+                count = 1
+            else:
+                with catalogue_access(catalogue.path_catalogue):
+                    existing = {snapshot.id for snapshot in catalogue.get_all()}
+                    catalogue.import_catalogue(archive)
+                    count = sum(snapshot.id not in existing for snapshot in catalogue.get_all())
+                if not count:
+                    raise ValueError(tr("No new snapshots were found in this catalogue archive."))
+            log_action(ActionCategory.CATALOGUE, ActionType.CATALOGUE_SNAPSHOTS_IMPORTED, f"{archive.name} ({count})")
+
+        self.dash_model.run_heavy_operation(
+            tr("Import ZIP"),
+            tr("Importing archive"),
+            action,
+            success_msg_title=tr("Import complete"),
+            success_msg=tr("Imported snapshots are available in the catalogue."),
+            update_dashboard=True,
+        )
 
     def __open_snapshot_searcher(self):
         """
