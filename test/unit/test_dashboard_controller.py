@@ -112,6 +112,7 @@ def _import_dashboard_module(monkeypatch):
     class FakeSettingController:
         def __init__(self, _model):
             self.view = FakePageView("Settings")
+            self.model = types.SimpleNamespace(backup_path_updated=FakeSignal())
 
     class FakeDashboardModel:
         def __init__(self):
@@ -363,4 +364,19 @@ def test_catalogue_invalidation_clears_previous_views(monkeypatch):
     assert controller.searcher.snapshots == []
     assert controller.searcher.scope_reset
     assert controller.backup.update_data_calls == 2
+    assert controller.backup.backups == []
+
+
+def test_backup_path_change_clears_old_rows_even_when_listing_fails(monkeypatch):
+    dashboard_module, _ = _import_dashboard_module(monkeypatch)
+    controller = dashboard_module.DashboardController()
+    controller.start()
+    data = types.SimpleNamespace(snapshots=[], home_statistics=None, backup_count=1, backups=["old archive"])
+    controller.model.signal_on_updated_data_available.emit(data)
+    assert controller.backup.backups == ["old archive"]
+
+    controller.settings.model.backup_path_updated.emit("new backup folder")
+    assert controller.backup.backups == []
+    data.backups = None
+    controller.model.signal_on_updated_data_available.emit(data)
     assert controller.backup.backups == []

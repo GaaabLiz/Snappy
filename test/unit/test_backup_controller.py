@@ -54,6 +54,7 @@ def test_backup_controller(monkeypatch):
     # Fake catalogue
     class FakeCat:
         def __init__(self):
+            self.settings = types.SimpleNamespace(backup_path=Path("/a/b"))
             self.restore_calls = []
             self.delete_calls = []
 
@@ -179,6 +180,19 @@ def test_backup_controller(monkeypatch):
     dash.finish_next()
     assert "fail delete" in msgs[-1]
     assert not dash.operation_active
+
+    # A queued action must still use the backup folder configured at execution.
+    restores = list(cat.restore_calls)
+    deletes = list(cat.delete_calls)
+    ctrl.view.signal_restore_requested.emit(b1)
+    cat.settings.backup_path = Path("/new/backups")
+    dash.finish_next()
+    ctrl.view.signal_delete_requested.emit(b1)
+    dash.finish_next()
+    assert cat.restore_calls == restores
+    assert cat.delete_calls == deletes
+    assert "The backup folder changed" in msgs[-1]
+    cat.settings.backup_path = b1.path.parent
     
     # open exception
     def fake_openUrl_err(u): raise Exception("open error")
