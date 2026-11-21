@@ -25,6 +25,16 @@ def test_catalogue_controller(monkeypatch):
         @classmethod
         def getExistingDirectory(cls, *args): return cls.ret
     monkeypatch.setattr("PySide6.QtWidgets.QFileDialog", FakeQFileDialog)
+
+    class FakeQInputDialog:
+        source_index = 0
+        accepted = True
+
+        @classmethod
+        def getItem(cls, parent, title, text, labels, current, editable):
+            return labels[cls.source_index], cls.accepted
+
+    monkeypatch.setattr("PySide6.QtWidgets.QInputDialog", FakeQInputDialog)
     
     # Mock UiUtils
     import pylizlib.qtfw.util.ui
@@ -131,11 +141,12 @@ def test_catalogue_controller(monkeypatch):
             self.delete_with_result = Mock(return_value=SnapshotOperationResult(Path("/backups/delete.zip")))
             self.get_removable_paths = Mock(return_value=[Path("/installed/folder")])
             self.remove_installed_copies_with_result = Mock(return_value=SnapshotOperationResult(Path("/backups/remove.zip")))
+            self.export_assoc_dirs = Mock()
+            self.export_captured_assoc_dirs = Mock()
             self.sync_with_result = Mock(return_value=SnapshotOperationResult(Path("/backups/sync.zip")))
         def get_snap_directory_path(self, s): return Path("/snap/dir")
         def duplicate_by_id(self, id, progress_callback=None, message_callback=None): pass
         def export_snapshot(self, id, d, progress_callback=None, message_callback=None): pass
-        def export_assoc_dirs(self, id, d, progress_callback=None, message_callback=None): pass
     class FakeDash:
         def __init__(self):
             self.cached_data = None
@@ -232,6 +243,19 @@ def test_catalogue_controller(monkeypatch):
     # __export_snapshot_folders
     ctrl.view.signal_export_request_assoc_folders.emit(snap)
     assert actions[-1][1] == ActionType.CATALOGUE_ASSOCIATED_FOLDERS_EXPORTED
+    catalogue.export_captured_assoc_dirs.assert_called_once_with(
+        "s1", Path("/some/dir"), message_callback=task.update_task_message,
+    )
+    catalogue.export_assoc_dirs.assert_not_called()
+    FakeQInputDialog.source_index = 1
+    ctrl.view.signal_export_request_assoc_folders.emit(snap)
+    catalogue.export_assoc_dirs.assert_called_once_with(
+        "s1", Path("/some/dir"), message_callback=task.update_task_message,
+    )
+    FakeQInputDialog.accepted = False
+    ctrl.view.signal_export_request_assoc_folders.emit(snap)
+    assert catalogue.export_assoc_dirs.call_count == 1
+    FakeQInputDialog.accepted = True
     
     # __delete_snap_installed_dirs
     ctrl.view.signal_delete_installed_folders_requested.emit(snap)
@@ -301,7 +325,7 @@ def test_catalogue_controller(monkeypatch):
     ctrl.view.signal_import_requested.emit() # caught, no assert
     FakeDialogConfig.exec = old_exec
     
-    FakeMessageBox.__init__ = error_action
+    FakeMessageBox.exec_ = lambda self: False
     ctrl.view.signal_install_requested.emit(snap)
     ctrl.view.signal_delete_requested.emit(snap)
     ctrl.view.signal_export_request_snapshot.emit(snap)

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from PySide6.QtWidgets import QFileDialog
+from PySide6.QtWidgets import QFileDialog, QInputDialog
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtCore import QUrl
 from loguru import logger
@@ -276,8 +276,6 @@ class CatalogueController:
     def __execute_export(
             self,
             snap: Snapshot,
-            msg_box_title: str,
-            msg_box_text: str,
             file_dialog_text: str,
             export_method,
             action_type: ActionType,
@@ -287,33 +285,36 @@ class CatalogueController:
     ):
         logger.debug(f"{log_prefix} requested for {snap.name}")
         try:
-            w = MessageBox(msg_box_title, msg_box_text, parent=self.view)
-            if w.exec_():
-                directory = QFileDialog.getExistingDirectory(
-                    None,
-                    file_dialog_text,
-                    app.path.__str__()
+            directory = QFileDialog.getExistingDirectory(
+                None,
+                file_dialog_text,
+                app.path.__str__()
+            )
+            if directory:
+                def action(task):
+                    export_method(snap.id, Path(directory), message_callback=task.update_task_message)
+                    logger.info(f"{log_prefix} of {snap.name} to {directory} completed.")
+                    log_action(ActionCategory.CATALOGUE, action_type, f"{snap.name} -> {directory}")
+
+                self.dash_model.run_heavy_operation(
+                    op_title,
+                    op_desc,
+                    action,
+                    success_msg_title="", success_msg="", update_dashboard=False
                 )
-                if directory:
-                    def action(task):
-                        export_method(snap.id, Path(directory), message_callback=task.update_task_message)
-                        logger.info(f"{log_prefix} of {snap.name} to {directory} completed.")
-                        log_action(ActionCategory.CATALOGUE, action_type, f"{snap.name} -> {directory}")
-                    
-                    self.dash_model.run_heavy_operation(
-                        op_title,
-                        op_desc,
-                        action,
-                        success_msg_title="", success_msg="", update_dashboard=False
-                    )
         except Exception as e:
             UiUtils.show_message(tr("Export error"), tr("An error occurred during export: {error}", error=str(e)))
 
     def __export_snapshot(self, snap: Snapshot):
+        confirmation = MessageBox(
+            tr("Export snapshot"),
+            tr("Are you sure you want to export the selected snapshot?"),
+            parent=self.view,
+        )
+        if not confirmation.exec_():
+            return
         self.__execute_export(
             snap,
-            msg_box_title=tr("Export snapshot"),
-            msg_box_text=tr("Are you sure you want to export the selected snapshot?"),
             file_dialog_text=tr("Select the save folder for the snapshot"),
             export_method=self.dash_model.snap_catalogue.export_snapshot,
             action_type=ActionType.CATALOGUE_SNAPSHOT_EXPORTED,
@@ -323,14 +324,23 @@ class CatalogueController:
         )
 
     def __export_snapshot_folders(self, snap: Snapshot):
+        catalogue = self.dash_model.snap_catalogue
+        sources = {
+            tr("Captured copies in the snapshot"): catalogue.export_captured_assoc_dirs,
+            tr("Current files in the local folders"): catalogue.export_assoc_dirs,
+        }
+        source, accepted = QInputDialog.getItem(
+            self.view, tr("Export associated folders"), tr("Choose the source of the exported files"),
+            list(sources), 0, False,
+        )
+        if not accepted:
+            return
         self.__execute_export(
             snap,
-            msg_box_title=tr("Export associated folders"),
-            msg_box_text=tr("Are you sure you want to export the folders associated with the selected snapshot?"),
             file_dialog_text=tr("Select the save folder for the associated folders"),
-            export_method=self.dash_model.snap_catalogue.export_assoc_dirs,
+            export_method=sources[source],
             action_type=ActionType.CATALOGUE_ASSOCIATED_FOLDERS_EXPORTED,
-            log_prefix="Folder export",
+            log_prefix=source,
             op_title=tr("Export associated folders"),
             op_desc=tr("Exporting folders")
         )
