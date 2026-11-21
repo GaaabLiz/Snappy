@@ -56,6 +56,8 @@ class SettingModel(QObject):
             logger.info(f"Changing catalogue path to: {directory}")
             self.dash_model.snap_catalogue.set_catalogue_path(catalogue_path)
             app_settings.set(AppSettings.catalogue_path, catalogue_path)
+            if previous_backend_path != catalogue_path:
+                self.dash_model.invalidate_catalogue_data()
             log_action(ActionCategory.SETTINGS, ActionType.SETTINGS_CATALOGUE_PATH_CHANGED, directory)
             self.catalogue_path_updated.emit(directory)
         except Exception:

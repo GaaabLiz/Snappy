@@ -29,6 +29,7 @@ class DashboardModel(QObject):
     signal_on_update_text = Signal(str)
     signal_on_update_detail_text = Signal(str)
     signal_on_updated_data_available = Signal(SnappyData)
+    signal_on_catalogue_invalidated = Signal()
     signal_on_heavy_operation_success = Signal(str, str)
     signal_on_heavy_operation_error = Signal(str, str)
 
@@ -38,6 +39,7 @@ class DashboardModel(QObject):
         """
         super().__init__()
         self.cached_data: SnappyData | None = None
+        self._catalogue_reload_pending = False
         self.snap_catalogue = SnapshotCatalogue(
             path_catalogue=Path(app_settings.get(AppSettings.catalogue_path)),
             settings=snap_settings
@@ -86,6 +88,12 @@ class DashboardModel(QObject):
         """
         if self.operation_active:
             self.signal_on_update_already_running.emit()
+            return False
+        if self._catalogue_reload_pending:
+            self.signal_on_heavy_operation_error.emit(
+                tr("Catalogue Error"),
+                tr("Reload the new catalogue with F5 before starting operations."),
+            )
             return False
 
         task = GenericTask(op_name, func)
@@ -164,6 +172,12 @@ class DashboardModel(QObject):
             SnappyData | None: The cached data, or None if no data has been fetched yet.
         """
         return self.cached_data
+
+    def invalidate_catalogue_data(self):
+        """Discard the previous catalogue data before reading a newly selected path."""
+        self.cached_data = None
+        self._catalogue_reload_pending = True
+        self.signal_on_catalogue_invalidated.emit()
 
     def update(self) -> bool:
         """
@@ -249,8 +263,9 @@ class DashboardModel(QObject):
                 backup_count=self.task_snap.backup_count,
                 backups=self.task_snap.backups,
             )
-            self.signal_on_updated_data_available.emit(data)
             self.cached_data = data
+            self._catalogue_reload_pending = False
+            self.signal_on_updated_data_available.emit(data)
         except Exception as error:
             error_to_report = error
             logger.error(f"Error processing dashboard update: {error}")

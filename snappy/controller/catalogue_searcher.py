@@ -202,8 +202,10 @@ class CatalogueSearcherController:
         message = "\n\n".join(f"• {snapshot_name}\n{cause}" for snapshot_name, cause in details)
         MessageBox(title, message, self.view).exec()
 
-    def update_snapshots(self, snapshots: list[Snapshot]):
-        """Refresh the available snapshots while preserving the active filter."""
+    def update_snapshots(self, snapshots: list[Snapshot], *, reset_scope: bool = False):
+        """Refresh available snapshots, resetting the filter when switching catalogues."""
+        if reset_scope:
+            self._selected_ids = None
         self._snapshots = snapshots
         self._apply_scope()
 
