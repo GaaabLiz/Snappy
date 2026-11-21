@@ -8,7 +8,7 @@ from loguru import logger
 from pylizlib.core.os.snap import SnapshotCatalogue, Snapshot
 
 from snappy.model.history import log_action, ActionCategory, ActionType
-from snappy.model.catalogue_searcher import CatalogueSearcherModel, SearchResultsTreeModel
+from snappy.model.catalogue_searcher import CatalogueSearcherModel, SearchOutcome, SearchResultsTreeModel
 from snappy.view.catalogue_searcher import CatalogueSearcherView, SnapshotResultsDialog
 from snappy.application.i18n import tr
 
@@ -31,6 +31,8 @@ class CatalogueSearcherController:
         """
         self.view = CatalogueSearcherView(parent)
         self.model = CatalogueSearcherModel(catalogue, dash_model)
+        self._snapshots: list[Snapshot] = []
+        self._selected_ids: set[str] | None = None
 
         # Connect view and model
         self.view.setModel(self.model.table_model)
@@ -49,21 +51,13 @@ class CatalogueSearcherController:
         # Connect the status card update signal directly to the view's slot
         self.model.signal_status_card_update.connect(self.view.update_status_card)
 
-    def _on_snapshot_filter_changed(self, snap_ids):
-        """
-        Handles the snapshot filter change from the dropdown menu.
-        """
+    def _on_snapshot_filter_changed(self, snap_ids: list[str]):
+        """Apply the dropdown selection to the cached catalogue."""
         if self.model.is_search_active:
-            current_ids = [snapshot.id for snapshot in self.model.table_model.get_data()]
-            self.view.update_snapshot_menu(self.model.catalogue.get_all(), current_ids)
+            self.view.update_snapshot_menu(self._snapshots, self._selected_ids)
             return
-
-        if not snap_ids:
-            self.open(None)
-        else:
-            snapshots = [s for s in self.model.catalogue.get_all() if s.id in snap_ids]
-            if snapshots:
-                self.open(snapshots)
+        self._selected_ids = set(snap_ids) if snap_ids else None
+        self._apply_scope()
 
     def _on_delete_requested(self, row: int):
         """
@@ -77,6 +71,8 @@ class CatalogueSearcherController:
 
         logger.debug(f"Removing row {row} from search results")
         self.model.table_model.remove_snapshot(row)
+        self._selected_ids = {snapshot.id for snapshot in self.model.table_model.get_data()}
+        self.view.update_snapshot_menu(self._snapshots, self._selected_ids)
         log_action(ActionCategory.SEARCH, ActionType.SEARCH_SNAPSHOT_REMOVED, f"row={row}")
 
     def _on_file_double_clicked(self, file_path: str):
@@ -156,6 +152,7 @@ class CatalogueSearcherController:
             search_started = self.model.search(search_text, query_type, search_target, extensions)
         except Exception as error:
             logger.exception("Failed to start catalogue search")
+            log_action(ActionCategory.SEARCH, ActionType.SEARCH_FAILED, str(error))
             self.view.set_operation_status(False)
             self.view.action_start.setEnabled(True)
             self.view.action_stop.setEnabled(False)
@@ -180,53 +177,50 @@ class CatalogueSearcherController:
         self.model.stop_search()
         # Controls are restored by _on_search_finished once the worker has exited.
         self.view.action_stop.setEnabled(False)
-        log_action(ActionCategory.SEARCH, ActionType.SEARCH_STOPPED, "")
 
-    def _on_search_finished(self, failures: list[tuple[str, str]]):
-        """Updates the UI and reports snapshot searches that failed."""
+    def _on_search_finished(self, outcome: SearchOutcome):
+        """Restore controls and record how the search ended."""
         self.view.set_operation_status(False)
         self.view.action_start.setEnabled(True)
         self.view.action_stop.setEnabled(False)
 
-        if not failures:
-            logger.info("Search completed successfully")
+        details = outcome.failures + outcome.limited
+        if outcome.cancelled:
+            log_action(ActionCategory.SEARCH, ActionType.SEARCH_STOPPED, "")
+            return
+        if not details:
             log_action(ActionCategory.SEARCH, ActionType.SEARCH_COMPLETED, "")
             return
 
-        logger.warning(f"Search completed with {len(failures)} failed snapshot(s): {failures}")
-        log_action(
-            ActionCategory.SEARCH,
-            ActionType.SEARCH_COMPLETED_WITH_ERRORS,
-            f"failed_snapshots={len(failures)}",
-        )
+        if outcome.failures:
+            title = tr("Search completed with errors")
+            action = ActionType.SEARCH_COMPLETED_WITH_ERRORS
+        else:
+            title = tr("Search results are incomplete")
+            action = ActionType.SEARCH_PARTIAL
+        log_action(ActionCategory.SEARCH, action, f"failed_snapshots={len(outcome.failures)}, limits_reached={len(outcome.limited)}")
+        message = "\n\n".join(f"• {snapshot_name}\n{cause}" for snapshot_name, cause in details)
+        MessageBox(title, message, self.view).exec()
 
-        failure_details = "\n\n".join(
-            f"• {snapshot_name}\n{tr('Cause: {error}', error=cause)}"
-            for snapshot_name, cause in failures
-        )
-        content = f"{tr('The search finished, but some snapshots could not be analyzed:')}\n\n{failure_details}"
-        MessageBox(tr("Search completed with errors"), content, self.view).exec()
+    def update_snapshots(self, snapshots: list[Snapshot]):
+        """Refresh the available snapshots while preserving the active filter."""
+        self._snapshots = snapshots
+        self._apply_scope()
 
     def open(self, snapshot_or_snapshots: Snapshot | list[Snapshot] | None = None):
-        """
-        Loads snapshots into the search page.
-
-        If snapshots are provided, the page is scoped to those snapshots only.
-        Otherwise it shows all snapshots.
-        """
+        """Open the search page with the explicitly requested scope."""
         if self.model.is_search_active:
-            logger.info("Ignoring search scope update while a search is running.")
             return
+        if snapshot_or_snapshots is None:
+            self._selected_ids = None
+        else:
+            snapshots = snapshot_or_snapshots if isinstance(snapshot_or_snapshots, list) else [snapshot_or_snapshots]
+            self._selected_ids = {snapshot.id for snapshot in snapshots}
+        self._apply_scope()
 
-        if not self.model.load_snapshots_from_catalogue(snapshot_or_snapshots):
-            return
-        
-        all_snapshots = self.model.catalogue.get_all()
-        selected_ids = []
-        if snapshot_or_snapshots:
-            if isinstance(snapshot_or_snapshots, list):
-                selected_ids = [s.id for s in snapshot_or_snapshots]
-            else:
-                selected_ids = [snapshot_or_snapshots.id]
-                
-        self.view.update_snapshot_menu(all_snapshots, selected_ids)
+    def _apply_scope(self):
+        visible = self._snapshots if self._selected_ids is None else [
+            snapshot for snapshot in self._snapshots if snapshot.id in self._selected_ids
+        ]
+        if self.model.set_snapshots(visible):
+            self.view.update_snapshot_menu(self._snapshots, self._selected_ids)

@@ -1,15 +1,25 @@
+from dataclasses import dataclass, field
+
 
 from PySide6.QtCore import QAbstractTableModel, Qt, QModelIndex, Signal, QObject
 from PySide6.QtGui import QStandardItemModel, QStandardItem
 
 from loguru import logger
 from pylizlib.core.os.snap import SnapshotCatalogue, Snapshot, SnapshotSearchParams, QueryType, SearchTarget, SnapshotSearcher, \
-    SnapshotSearchResult
+    SnapshotSearchReport, SnapshotSearchResult
 from pylizlib.qt.handler.operation_core import Operation, Task
 from pylizlib.qt.handler.operation_domain import OperationInfo, OperationStatus
 from pylizlib.qt.handler.operation_runner import OperationRunner, RunnerStatistics
 
+from snappy.application.app import AppSettings, app_settings
 from snappy.application.i18n import tr
+
+
+@dataclass
+class SearchOutcome:
+    cancelled: bool = False
+    failures: list[tuple[str, str]] = field(default_factory=list)
+    limited: list[tuple[str, str]] = field(default_factory=list)
 
 
 class SearchResultsTableModel(QAbstractTableModel):
@@ -87,7 +97,7 @@ class SearchResultsTableModel(QAbstractTableModel):
             new_data (list[Snapshot]): The new list of snapshots to display.
         """
         self.beginResetModel()
-        self._data = new_data
+        self._data = list(new_data)
         self._progress_data.clear()
         self._status_data.clear()
         self._results_count_data.clear()
@@ -187,14 +197,14 @@ class SnapSearchTask(Task):
         self.snapshot = snapshot
         self.searcher = SnapshotSearcher(catalogue)
 
-    def execute(self) -> list[SnapshotSearchResult]:
+    def execute(self) -> SnapshotSearchReport:
         """
         Executes the search task.
 
         Connects a progress callback and runs the search using SnapshotSearcher.
 
         Returns:
-            list[SnapshotSearchResult]: A list of results found in the snapshot.
+            SnapshotSearchReport: Results and whether the search exceeded limits or was cancelled.
         """
         def on_progress(file_name: str, total_files: int, current_file: int):
             self.task_update_message.emit(self.name, tr("Scan: {file_name}", file_name=file_name))
@@ -202,8 +212,7 @@ class SnapSearchTask(Task):
                 self.gen_update_task_progress(current_file, total_files)
             return not getattr(self, "is_cancelled", False)
 
-        results = self.searcher.search(self.snapshot, self.params, on_progress=on_progress)
-        return results
+        return self.searcher.search_with_report(self.snapshot, self.params, on_progress=on_progress)
 
 
 class SearchResultsTreeModel:
@@ -331,28 +340,11 @@ class CatalogueSearcherModel(QObject):
             ops.append(op)
         return ops
 
-    def load_snapshots_from_catalogue(self, snapshot_or_snapshots: Snapshot | list[Snapshot] | None = None) -> bool:
-        """
-        Loads snapshot names from the catalogue and populates the table model.
-        If snapshots are provided, only those are loaded. Otherwise, all snapshots are loaded.
-        
-        Args:
-            snapshot_or_snapshots: A specific snapshot, a list of snapshots, or None. Defaults to None.
-
-        Returns:
-            bool: Whether the snapshot scope was updated.
-        """
+    def set_snapshots(self, snapshots: list[Snapshot]) -> bool:
+        """Apply the selected snapshots to the search table."""
         if self._search_active:
             logger.info("Ignoring snapshot scope change while search is running.")
             return False
-
-        if snapshot_or_snapshots:
-            if isinstance(snapshot_or_snapshots, list):
-                snapshots = snapshot_or_snapshots
-            else:
-                snapshots = [snapshot_or_snapshots]
-        else:
-            snapshots = self.catalogue.get_all()
 
         self.runner.clear()
         self._op_id_to_snap_id.clear()
@@ -399,8 +391,11 @@ class CatalogueSearcherModel(QObject):
                 query=text,
                 query_type=query_type,
                 search_target=search_target,
-                extensions=extensions
+                extensions=extensions,
+                max_results=app_settings.get(AppSettings.search_max_results),
+                regex_timeout_seconds=app_settings.get(AppSettings.search_regex_timeout),
             )
+            SnapshotSearcher.validate_query(params)
             operations = self.__get_runner_operations(params)
             if not operations:
                 logger.info("No snapshots are available for search.")
@@ -503,54 +498,53 @@ class CatalogueSearcherModel(QObject):
         self._current_eta = eta
         self._emit_status_card_update()
 
-    def _get_operation_results(self, op: Operation) -> list[SnapshotSearchResult]:
-        """Helper to extract search results from an operation's tasks."""
+    @staticmethod
+    def _get_operation_report(op: Operation) -> SnapshotSearchReport:
+        """Read the single search task's report when the task returned one."""
         task_results = op.get_task_results()
-        if task_results and isinstance(task_results[0], list):
+        if task_results and isinstance(task_results[0], SnapshotSearchReport):
             return task_results[0]
-        return []
+        return SnapshotSearchReport([])
 
     def on_runner_finished(self, statistics: RunnerStatistics):
-        """
-        Slot to handle the completion of all search operations.
-
-        Aggregates all results and populates the results tree.
-
-        Args:
-            statistics (RunnerStatistics): Statistics about the completed run.
-        """
-        failures = []
+        """Present the completed tasks' results and report incomplete outcomes."""
+        outcome = SearchOutcome(cancelled=statistics.cancelled_operations > 0)
+        snapshot_names = {snapshot.id: snapshot.name for snapshot in self.table_model.get_data()}
+        all_results = []
         try:
-            logger.info("Model search finished. Processing statistics...")
-            all_results = []
-            for op in self.runner._all_operations:
-                all_results.extend(self._get_operation_results(op))
+            for op in statistics.operations:
+                snapshot_id = self._op_id_to_snap_id.get(op.id)
+                snapshot_name = snapshot_names.get(snapshot_id, snapshot_id or tr("Unknown snapshot"))
+                report = self._get_operation_report(op)
+                all_results.extend(report.results)
+                outcome.cancelled |= report.cancelled
+
+                if op.is_failed():
+                    cause = str(op.error).strip() if op.error else tr("No error details available.")
+                    outcome.failures.append((snapshot_name, cause))
+                if report.result_limit_exceeded:
+                    outcome.limited.append((snapshot_name, tr("More matches were found than can be displayed.")))
+                if report.file_limit_exceeded:
+                    outcome.limited.append((snapshot_name, tr("The file limit was reached. Some files were skipped.")))
 
             self.tree_model_manager.populate_from_results(all_results)
-            if statistics.has_ops_failed():
-                snapshot_names = {snapshot.id: snapshot.name for snapshot in self.table_model.get_data()}
-                for operation in statistics.operations:
-                    if not operation.is_failed():
-                        continue
-
-                    snapshot_id = self._op_id_to_snap_id.get(operation.id)
-                    snapshot_name = snapshot_names.get(snapshot_id, snapshot_id or tr("Unknown snapshot"))
-                    cause = str(operation.error).strip() if operation.error else tr("No error details available.")
-                    failures.append((snapshot_name, cause))
-
-                if not failures:
-                    error = statistics.get_first_error()
-                    failures.append((tr("Unknown snapshot"), str(error) if error else tr("No error details available.")))
         except Exception as error:
             logger.exception("Failed to assemble search results.")
             cause = str(error).strip() or tr("No error details available.")
-            failures.append((tr("Unknown snapshot"), cause))
-
+            outcome.failures.append((tr("Unknown snapshot"), cause))
         finally:
             self._search_active = False
             if self.dash_model:
                 self.dash_model.operation_active = False
-            self.signal_search_finished.emit(failures)
+            if outcome.cancelled:
+                self._current_message = tr("Search cancelled")
+            elif outcome.failures:
+                self._current_message = tr("Search completed with errors")
+            elif outcome.limited:
+                self._current_message = tr("Search results are incomplete")
+            self._current_eta = "--:--"
+            self._emit_status_card_update()
+            self.signal_search_finished.emit(outcome)
 
     def get_results_for_snapshot(self, snap_id: str) -> list[SnapshotSearchResult]:
         """
@@ -559,7 +553,7 @@ class CatalogueSearcherModel(QObject):
         results = []
         for op in self.runner._all_operations:
             if self._op_id_to_snap_id.get(op.id) == snap_id:
-                results.extend(self._get_operation_results(op))
+                results.extend(self._get_operation_report(op).results)
                 break
         return results
 
@@ -578,7 +572,7 @@ class CatalogueSearcherModel(QObject):
         snap_id = self._op_id_to_snap_id[op.id]
         count_str = ""
         if op.is_completed():
-            op_results = self._get_operation_results(op)
+            op_results = self._get_operation_report(op).results
             count_str = str(len(op_results))
         elif op.is_failed():
             count_str = "?"

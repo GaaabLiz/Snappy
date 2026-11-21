@@ -481,7 +481,7 @@ class CatalogueSearcherView(SnappyQFrame):
         """Handles the resize event for the results table to redistribute columns."""
         self._distribuisci_colonne_perc()
         super(type(self.results_table), self.results_table).resizeEvent(event)
-    def update_snapshot_menu(self, snapshots, selected_snapshot_ids: list[str] | None = None):
+    def update_snapshot_menu(self, snapshots, selected_snapshot_ids: set[str] | None = None):
         """
         Updates the snapshot dropdown menu with the available snapshots.
         It rebuilds the menu if the available snapshots have changed, and updates
@@ -489,11 +489,8 @@ class CatalogueSearcherView(SnappyQFrame):
 
         Args:
             snapshots (list): A list of available snapshot objects.
-            selected_snapshot_ids (list[str] | None, optional): A list of snapshot IDs 
-                that should be marked as checked. Defaults to None.
+            selected_snapshot_ids (set[str] | None): IDs to mark checked, or None for the entire catalogue.
         """
-        if selected_snapshot_ids is None:
-            selected_snapshot_ids = []
 
         snapshot_names = {snapshot.id: snapshot.name for snapshot in snapshots}
 
@@ -527,13 +524,13 @@ class CatalogueSearcherView(SnappyQFrame):
 
         # Update checked states silently
         self.action_all_snapshots.blockSignals(True)
-        self.action_all_snapshots.setChecked(len(selected_snapshot_ids) == 0)
+        self.action_all_snapshots.setChecked(selected_snapshot_ids is None)
         self.action_all_snapshots.blockSignals(False)
 
         for snap_id, action in self._snapshot_actions.items():
             action.blockSignals(True)
             action.setText(snapshot_names[snap_id])
-            action.setChecked(snap_id in selected_snapshot_ids)
+            action.setChecked(selected_snapshot_ids is not None and snap_id in selected_snapshot_ids)
             action.blockSignals(False)
 
     def _on_all_snapshots_triggered(self):

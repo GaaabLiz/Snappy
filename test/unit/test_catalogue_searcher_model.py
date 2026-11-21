@@ -5,6 +5,8 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt
 
+import pytest
+
 from pylizlib.core.os.snap import Snapshot, SnapshotSearchResult, SnapshotSearchParams, QueryType, SearchTarget
 
 SNAPSHOT_CREATED = datetime(2025, 1, 1)
@@ -161,15 +163,15 @@ def test_snap_search_task(monkeypatch):
     
     class FakeSearcher:
         def __init__(self, cat): pass
-        def search(self, s, p, on_progress):
+        def search_with_report(self, s, p, on_progress):
             on_progress("file.txt", 10, 1)
             on_progress("file2.txt", 0, 0)
-            return ["result"]
+            return searcher_module.SnapshotSearchReport(["result"])
             
     monkeypatch.setattr(searcher_module, "SnapshotSearcher", FakeSearcher)
     
     task = searcher_module.SnapSearchTask(params, snap, FakeCatalogue())
-    assert task.execute() == ["result"]
+    assert task.execute().results == ["result"]
 
 def test_catalogue_searcher_model(monkeypatch):
     searcher_module = _import_searcher_module(monkeypatch)
@@ -181,10 +183,10 @@ def test_catalogue_searcher_model(monkeypatch):
     model = searcher_module.CatalogueSearcherModel(FakeCatalogue(), dash)
     
     # Load
-    model.load_snapshots_from_catalogue()
+    model.set_snapshots(model.catalogue.get_all())
     assert model.table_model.rowCount() == 1
     
-    model.load_snapshots_from_catalogue(Snapshot(id="s2", name="S2", desc="Desc", date_created=SNAPSHOT_CREATED, tags=[], data={}, directories=[]))
+    model.set_snapshots([Snapshot(id="s2", name="S2", desc="Desc", date_created=SNAPSHOT_CREATED, tags=[], data={}, directories=[])])
     assert model.table_model.rowCount() == 1
     
     # Status card updates via signals
@@ -195,6 +197,10 @@ def test_catalogue_searcher_model(monkeypatch):
     dash.operation_active = True
     assert not model.search("text", QueryType.TEXT, SearchTarget.FILE_NAME, [])
     dash.operation_active = False
+
+    with pytest.raises(ValueError):
+        model.search("[", QueryType.REGEX, SearchTarget.FILE_NAME, [])
+    assert not model.is_search_active
 
     # Search
     model.search("text", QueryType.TEXT, SearchTarget.FILE_NAME, [])
@@ -243,13 +249,18 @@ def test_catalogue_searcher_model(monkeypatch):
         def get_task_results(self): return self.r
         
     res = SnapshotSearchResult(snapshot_name="S2", file_path=Path("path"), searched_text="abc")
-    model.runner._all_operations = [FakeOp(True, False, [[res]])]
-    model.on_runner_finished(types.SimpleNamespace(has_ops_failed=lambda: False))
+    report = searcher_module.SnapshotSearchReport([res], result_limit_exceeded=True)
+    model.runner._all_operations = [FakeOp(True, False, [report])]
+    outcomes = []
+    model.signal_search_finished.connect(outcomes.append)
+    model.on_runner_finished(types.SimpleNamespace(operations=model.runner._all_operations, cancelled_operations=0))
+    assert outcomes[0].limited
+    assert not outcomes[0].cancelled
     assert not dash.operation_active
     assert model.tree_model_manager.model.rowCount() == 1
     
     # Operation finished
-    model.on_operation_finished(FakeOp(True, False, [[res]]))
+    model.on_operation_finished(FakeOp(True, False, [report]))
     assert model.table_model._results_count_data["s2"] == "1"
     
     model.on_operation_finished(FakeOp(True, False, []))
