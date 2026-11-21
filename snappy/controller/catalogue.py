@@ -346,19 +346,25 @@ class CatalogueController:
         """
         logger.debug(f"Installed folders deletion requested for {snap.name}")
         try:
-            confirmed_paths = tuple(association.original_path for association in snap.directories)
-            path_list = "\n".join(f"• {path}" for path in confirmed_paths)
-            confirmation_text = tr(
-                "The following associated paths will be checked. Existing folders may be removed; missing paths will be skipped."
-            )
-            if path_list:
-                confirmation_text = f"{confirmation_text}\n\n{path_list}"
-            else:
-                confirmation_text = f"{confirmation_text}\n\n{tr('No folders are associated with this snapshot.')}"
+            catalogue = self.dash_model.snap_catalogue
+            paths = catalogue.get_removable_paths(snap.id)
+            if paths is None:
+                UiUtils.show_message(tr("Delete installed folders"), tr("There is no installation record for this snapshot."), self.view)
+                return
+            if not paths:
+                UiUtils.show_message(tr("Delete installed folders"), tr("There are no installed folders to remove for this snapshot."), self.view)
+                return
+
+            confirmed_paths = set(paths)
+            path_list = "\n".join(f"• {path}" for path in paths)
+            confirmation_text = f"{tr('The following installed folders will be backed up and removed.')}\n\n{path_list}"
             w = MessageBox(tr("Delete installed folders"), confirmation_text, parent=self.view)
             if w.exec_():
                 def action(task):
-                    result = self.dash_model.snap_catalogue.remove_installed_copies_with_result(snap.id, message_callback=task.update_task_message)
+                    current_paths = catalogue.get_removable_paths(snap.id)
+                    if current_paths is None or set(current_paths) != confirmed_paths:
+                        raise ValueError(tr("The installed folders changed. Review the list and try again."))
+                    result = catalogue.remove_installed_copies_with_result(snap.id, message_callback=task.update_task_message)
                     if result.backup_path is not None:
                         logger.info(f"Installed folders deletion for {snap.name} completed.")
                         self.__log_automatic_backup(snap, result.backup_path, "remove installed folders")
@@ -371,7 +377,7 @@ class CatalogueController:
                     success_msg_title="", success_msg="", update_dashboard=True
                 )
         except Exception as e:
-            UiUtils.show_message(tr("Deletion error"), tr("An error occurred during deletion: {error}", error=str(e)))
+            UiUtils.show_message(tr("Deletion error"), tr("An error occurred during deletion: {error}", error=str(e)), self.view)
 
     def __update_assoc_dirs_from_installed(self, snap: Snapshot):
         """

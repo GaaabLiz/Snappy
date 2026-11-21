@@ -12,9 +12,10 @@ def test_catalogue_controller(monkeypatch):
     
     # Mock MessageBox
     import qfluentwidgets
+    confirmations = []
     class FakeMessageBox:
         res = True
-        def __init__(self, t, d, parent=None): pass
+        def __init__(self, t, d, parent=None): confirmations.append(d)
         def exec_(self): return self.res
     monkeypatch.setattr(qfluentwidgets, "MessageBox", FakeMessageBox)
     
@@ -30,13 +31,13 @@ def test_catalogue_controller(monkeypatch):
     msgs = []
     class FakeUiUtils:
         @classmethod
-        def show_message(cls, t, text): msgs.append(text)
+        def show_message(cls, t, text, parent=None): msgs.append(text)
     monkeypatch.setattr(pylizlib.qtfw.util.ui, "UiUtils", FakeUiUtils)
     
     # Mock DialogConfig
     dl_mod = types.ModuleType("snappy.view.catalogue_imp_dialog")
     class FakeSnapshot:
-        def __init__(self, id, name): self.id = id; self.name = name; self.directories = []
+        def __init__(self, id, name): self.id = id; self.name = name
     form_data = {
         "id": "d1",
         "name": "D1",
@@ -128,6 +129,7 @@ def test_catalogue_controller(monkeypatch):
             ))
             self.install_with_result = Mock(return_value=SnapshotOperationResult(None))
             self.delete_with_result = Mock(return_value=SnapshotOperationResult(Path("/backups/delete.zip")))
+            self.get_removable_paths = Mock(return_value=[Path("/installed/folder")])
             self.remove_installed_copies_with_result = Mock(return_value=SnapshotOperationResult(Path("/backups/remove.zip")))
             self.sync_with_result = Mock(return_value=SnapshotOperationResult(Path("/backups/sync.zip")))
         def get_snap_directory_path(self, s): return Path("/snap/dir")
@@ -233,8 +235,23 @@ def test_catalogue_controller(monkeypatch):
     
     # __delete_snap_installed_dirs
     ctrl.view.signal_delete_installed_folders_requested.emit(snap)
+    assert "• /installed/folder" in confirmations[-1]
+    assert "backed up" in confirmations[-1]
     catalogue.remove_installed_copies_with_result.assert_called_once_with("s1", message_callback=task.update_task_message)
     assert actions[-1][1] == ActionType.CATALOGUE_INSTALLED_FOLDERS_DELETED
+
+    catalogue.get_removable_paths.return_value = []
+    ctrl.view.signal_delete_installed_folders_requested.emit(snap)
+    assert "no installed folders" in msgs[-1]
+    catalogue.get_removable_paths.return_value = None
+    ctrl.view.signal_delete_installed_folders_requested.emit(snap)
+    assert "no installation record" in msgs[-1]
+    catalogue.get_removable_paths.side_effect = [[Path("/installed/folder")], [Path("/installed/other")]]
+    ctrl.view.signal_delete_installed_folders_requested.emit(snap)
+    assert "folders changed" in msgs[-1]
+    assert catalogue.remove_installed_copies_with_result.call_count == 1
+    catalogue.get_removable_paths.side_effect = None
+    catalogue.get_removable_paths.return_value = [Path("/installed/folder")]
     
     # __update_assoc_dirs_from_installed
     ctrl.view.signal_update_with_local_dirs_requested.emit(snap)
