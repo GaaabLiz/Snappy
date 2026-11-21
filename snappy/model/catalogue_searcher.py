@@ -1,3 +1,4 @@
+from collections import Counter
 from dataclasses import dataclass, field
 
 
@@ -13,6 +14,9 @@ from pylizlib.qt.handler.operation_runner import OperationRunner, RunnerStatisti
 
 from snappy.application.app import AppSettings, app_settings
 from snappy.application.i18n import tr
+
+
+RESULT_FILE_PATH_ROLE = Qt.ItemDataRole.UserRole + 1
 
 
 @dataclass
@@ -228,38 +232,37 @@ class SearchResultsTreeModel:
         self.model.clear()
         self.model.setHorizontalHeaderLabels([tr('Results')])
 
-    def populate_from_results(self, results: list[SnapshotSearchResult]):
-        """
-        Populates the tree model with search results, grouped by snapshot.
-
-        Args:
-            results (list[SnapshotSearchResult]): The list of search results to display.
-        """
+    def populate_from_results(self, groups: list[tuple[Snapshot, list[SnapshotSearchResult]]]):
+        """Show each snapshot's matches by file and line, keeping snapshot identities distinct."""
         self.clear()
-        self.model.setHorizontalHeaderLabels([tr("Results ({count})", count=len(results))])
+        count = sum(len(results) for _, results in groups)
+        self.model.setHorizontalHeaderLabels([tr("Results ({count})", count=count)])
+        names = Counter(snapshot.name for snapshot, results in groups if results)
 
-        results_by_snapshot = {}
-        for res in results:
-            if res.snapshot_name not in results_by_snapshot:
-                results_by_snapshot[res.snapshot_name] = []
-            results_by_snapshot[res.snapshot_name].append(res)
-
-        for snapshot_name, snapshot_results in results_by_snapshot.items():
-            snapshot_item = QStandardItem(f"{snapshot_name} ({len(snapshot_results)})")
+        for snapshot, results in groups:
+            if not results:
+                continue
+            name = snapshot.name if names[snapshot.name] == 1 else f"{snapshot.name} [{snapshot.id}]"
+            snapshot_item = QStandardItem(f"{name} ({len(results)})")
             snapshot_item.setEditable(False)
 
-            files_in_snapshot = {}
-            for res in snapshot_results:
-                file_path_str = str(res.file_path)
-                if file_path_str not in files_in_snapshot:
-                    files_in_snapshot[file_path_str] = []
-                files_in_snapshot[file_path_str].append(res)
+            files = {}
+            for result in results:
+                path = str(result.file_path)
+                file_item = files.get(path)
+                if file_item is None:
+                    file_item = QStandardItem(path)
+                    file_item.setEditable(False)
+                    file_item.setData(path, RESULT_FILE_PATH_ROLE)
+                    files[path] = file_item
+                    snapshot_item.appendRow(file_item)
 
-            for file_path_str, file_results in files_in_snapshot.items():
-                file_item = QStandardItem(file_path_str)
-                file_item.setEditable(False)
-                snapshot_item.appendRow(file_item)
-
+                if result.line_number is not None:
+                    text = tr("Line {number} — {preview}", number=result.line_number, preview=result.line_content or "")
+                    line_item = QStandardItem(text)
+                    line_item.setEditable(False)
+                    line_item.setData(path, RESULT_FILE_PATH_ROLE)
+                    file_item.appendRow(line_item)
             self.model.appendRow(snapshot_item)
 
 
@@ -509,14 +512,16 @@ class CatalogueSearcherModel(QObject):
     def on_runner_finished(self, statistics: RunnerStatistics):
         """Present the completed tasks' results and report incomplete outcomes."""
         outcome = SearchOutcome(cancelled=statistics.cancelled_operations > 0)
-        snapshot_names = {snapshot.id: snapshot.name for snapshot in self.table_model.get_data()}
-        all_results = []
+        snapshots = {snapshot.id: snapshot for snapshot in self.table_model.get_data()}
+        groups = []
         try:
             for op in statistics.operations:
                 snapshot_id = self._op_id_to_snap_id.get(op.id)
-                snapshot_name = snapshot_names.get(snapshot_id, snapshot_id or tr("Unknown snapshot"))
+                snapshot = snapshots.get(snapshot_id)
+                snapshot_name = snapshot.name if snapshot is not None else snapshot_id or tr("Unknown snapshot")
                 report = self._get_operation_report(op)
-                all_results.extend(report.results)
+                if snapshot is not None and report.results:
+                    groups.append((snapshot, report.results))
                 outcome.cancelled |= report.cancelled
 
                 if op.is_failed():
@@ -527,7 +532,7 @@ class CatalogueSearcherModel(QObject):
                 if report.file_limit_exceeded:
                     outcome.limited.append((snapshot_name, tr("The file limit was reached. Some files were skipped.")))
 
-            self.tree_model_manager.populate_from_results(all_results)
+            self.tree_model_manager.populate_from_results(groups)
         except Exception as error:
             logger.exception("Failed to assemble search results.")
             cause = str(error).strip() or tr("No error details available.")

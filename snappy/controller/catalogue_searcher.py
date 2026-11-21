@@ -112,7 +112,7 @@ class CatalogueSearcherController:
         dialog = SnapshotResultsDialog(snapshot.name, self.view)
         
         tree_model_manager = SearchResultsTreeModel()
-        tree_model_manager.populate_from_results(results)
+        tree_model_manager.populate_from_results([(snapshot, results)])
         
         dialog.tree_view.setModel(tree_model_manager.model)
         

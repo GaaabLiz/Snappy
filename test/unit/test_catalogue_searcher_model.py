@@ -139,17 +139,24 @@ def test_search_results_tree_model(monkeypatch):
     searcher_module = _import_searcher_module(monkeypatch)
     tree_model = searcher_module.SearchResultsTreeModel()
     
-    res1 = SnapshotSearchResult(snapshot_name="S1", file_path=Path("/a/b.txt"), searched_text="abc")
+    first = Snapshot("s1", "S1", "")
+    second = Snapshot("s2", "S1", "")
+    res1 = SnapshotSearchResult(snapshot_name="S1", file_path=Path("/a/b.txt"), searched_text="abc", line_number=7, line_content="find abc here")
     res2 = SnapshotSearchResult(snapshot_name="S1", file_path=Path("/a/c.txt"), searched_text="abc")
-    res3 = SnapshotSearchResult(snapshot_name="S2", file_path=Path("/a/b.txt"), searched_text="abc")
+    res3 = SnapshotSearchResult(snapshot_name="S1", file_path=Path("/a/b.txt"), searched_text="abc")
     
-    tree_model.populate_from_results([res1, res2, res3])
+    tree_model.populate_from_results([(first, [res1, res2]), (second, [res3])])
     
     # Check tree structure roughly
     assert tree_model.model.rowCount() == 2 # S1 and S2
     item_s1 = tree_model.model.item(0)
-    assert "S1" in item_s1.text()
+    assert item_s1.text() == "S1 [s1] (2)"
+    assert tree_model.model.item(1).text() == "S1 [s2] (1)"
     assert item_s1.rowCount() == 2 # 2 files
+    preview = item_s1.child(0).child(0)
+    assert preview.text() == "Line 7 — find abc here"
+    assert preview.data(searcher_module.RESULT_FILE_PATH_ROLE) == str(res1.file_path)
+    assert item_s1.child(1).rowCount() == 0
     
     tree_model.clear()
     assert tree_model.model.rowCount() == 0

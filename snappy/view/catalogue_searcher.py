@@ -22,6 +22,7 @@ from qfluentwidgets import (
 from pylizlib.core.os.snap import QueryType, SearchTarget
 
 from snappy.application.i18n import tr
+from snappy.model.catalogue_searcher import RESULT_FILE_PATH_ROLE
 from snappy.view.util.frame import SnappyQFrame
 
 
@@ -198,9 +199,8 @@ class CatalogueSearcherView(SnappyQFrame):
         Args:
             index (QModelIndex): The model index of the clicked item.
         """
-        item = self.tree_view.model().itemFromIndex(index)
-        if item and item.parent():  # It's a child item (file path)
-            file_path = item.text()
+        file_path = index.data(RESULT_FILE_PATH_ROLE)
+        if file_path:
             self.signal_file_double_clicked.emit(file_path)
 
     def _show_tree_context_menu(self, pos):
@@ -214,9 +214,8 @@ class CatalogueSearcherView(SnappyQFrame):
         if not index.isValid():
             return
 
-        item = self.tree_view.model().itemFromIndex(index)
-        if item and item.parent():  # Only for valid file paths
-            file_path = item.text()
+        file_path = index.data(RESULT_FILE_PATH_ROLE)
+        if file_path:
             
             menu = RoundMenu(parent=self)
             
@@ -614,9 +613,8 @@ class SnapshotResultsDialog(MessageBoxBase):
         Args:
             index (QModelIndex): The model index of the clicked item.
         """
-        item = self.tree_view.model().itemFromIndex(index)
-        if item and item.parent():
-            file_path = item.text()
+        file_path = index.data(RESULT_FILE_PATH_ROLE)
+        if file_path:
             self.signal_file_double_clicked.emit(file_path)
 
     def _show_tree_context_menu(self, pos):
@@ -630,9 +628,8 @@ class SnapshotResultsDialog(MessageBoxBase):
         index = self.tree_view.indexAt(pos)
         if not index.isValid():
             return
-        item = self.tree_view.model().itemFromIndex(index)
-        if item and item.parent():
-            file_path = item.text()
+        file_path = index.data(RESULT_FILE_PATH_ROLE)
+        if file_path:
             
             menu = RoundMenu(parent=self)
             
