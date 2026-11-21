@@ -1,11 +1,11 @@
 import sys
 import types
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import Mock, create_autospec
 
 from pylizlib.core.os.snap import SnapshotOperationResult
 
-def test_catalogue_controller(monkeypatch):
+def test_catalogue_controller(monkeypatch, tmp_path):
     # Mock i18n
     import snappy.application.i18n
     monkeypatch.setattr(snappy.application.i18n, "tr", lambda x, **kw: x.format(**kw) if kw else x)
@@ -131,8 +131,13 @@ def test_catalogue_controller(monkeypatch):
         def update_task_progress(self, p): pass
         def update_task_message(self, m): pass
     task = FakeTask()
+
+    def remove_with_confirmation(snap_id, message_callback=None, *, expected_paths=None):
+        pass
+
     class FakeCat:
         def __init__(self):
+            self.path_catalogue = tmp_path / "catalogue"
             self.create_snapshot = Mock(return_value=FakeSnapshot("d1", "D1"))
             self.update_snapshot_with_result = Mock(return_value=types.SimpleNamespace(
                 snapshot=FakeSnapshot("s1", "Edited"), backup_path=Path("/backups/edit.zip"),
@@ -140,7 +145,9 @@ def test_catalogue_controller(monkeypatch):
             self.install_with_result = Mock(return_value=SnapshotOperationResult(None))
             self.delete_with_result = Mock(return_value=SnapshotOperationResult(Path("/backups/delete.zip")))
             self.get_removable_paths = Mock(return_value=[Path("/installed/folder")])
-            self.remove_installed_copies_with_result = Mock(return_value=SnapshotOperationResult(Path("/backups/remove.zip")))
+            self.remove_installed_copies_with_result = create_autospec(
+                remove_with_confirmation, return_value=SnapshotOperationResult(Path("/backups/remove.zip"))
+            )
             self.export_assoc_dirs = Mock()
             self.export_captured_assoc_dirs = Mock()
             self.sync_with_result = Mock(return_value=SnapshotOperationResult(Path("/backups/sync.zip")))
@@ -261,7 +268,9 @@ def test_catalogue_controller(monkeypatch):
     ctrl.view.signal_delete_installed_folders_requested.emit(snap)
     assert "• /installed/folder" in confirmations[-1]
     assert "backed up" in confirmations[-1]
-    catalogue.remove_installed_copies_with_result.assert_called_once_with("s1", message_callback=task.update_task_message)
+    catalogue.remove_installed_copies_with_result.assert_called_once_with(
+        "s1", expected_paths={Path("/installed/folder")}, message_callback=task.update_task_message
+    )
     assert actions[-1][1] == ActionType.CATALOGUE_INSTALLED_FOLDERS_DELETED
 
     catalogue.get_removable_paths.return_value = []
@@ -270,12 +279,21 @@ def test_catalogue_controller(monkeypatch):
     catalogue.get_removable_paths.return_value = None
     ctrl.view.signal_delete_installed_folders_requested.emit(snap)
     assert "no installation record" in msgs[-1]
-    catalogue.get_removable_paths.side_effect = [[Path("/installed/folder")], [Path("/installed/other")]]
+    legacy_removal = Mock(return_value=SnapshotOperationResult(Path("/backups/remove.zip")))
+    catalogue.remove_installed_copies_with_result = legacy_removal
+    registry = Mock()
+    registry.get.return_value = [
+        types.SimpleNamespace(path=Path("/installed/folder")),
+        types.SimpleNamespace(path=Path("/installed/other")),
+    ]
+    monkeypatch.setattr(catalogue_module, "InstalledCopyRegistry", lambda _path: registry)
+    catalogue.get_removable_paths.return_value = [Path("/installed/folder")]
     ctrl.view.signal_delete_installed_folders_requested.emit(snap)
     assert "folders changed" in msgs[-1]
-    assert catalogue.remove_installed_copies_with_result.call_count == 1
-    catalogue.get_removable_paths.side_effect = None
-    catalogue.get_removable_paths.return_value = [Path("/installed/folder")]
+    legacy_removal.assert_not_called()
+    registry.get.return_value.pop()
+    ctrl.view.signal_delete_installed_folders_requested.emit(snap)
+    legacy_removal.assert_called_once_with("s1", message_callback=task.update_task_message)
     
     # __update_assoc_dirs_from_installed
     ctrl.view.signal_update_with_local_dirs_requested.emit(snap)

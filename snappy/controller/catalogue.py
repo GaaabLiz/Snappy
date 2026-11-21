@@ -1,3 +1,4 @@
+from inspect import signature
 from pathlib import Path
 
 from PySide6.QtWidgets import QFileDialog, QInputDialog
@@ -5,6 +6,8 @@ from PySide6.QtGui import QDesktopServices
 from PySide6.QtCore import QUrl
 from loguru import logger
 from pylizlib.core.os.snap import Snapshot
+from pylizlib.core.os.snap.storage.coordination import catalogue_access
+from pylizlib.core.os.snap.storage.install_registry import InstalledCopyRegistry
 from pylizlib.core.os.system import get_system_username
 from pylizlib.qtfw.util.ui import UiUtils
 from qfluentwidgets import MessageBox
@@ -365,16 +368,30 @@ class CatalogueController:
                 UiUtils.show_message(tr("Delete installed folders"), tr("There are no installed folders to remove for this snapshot."), self.view)
                 return
 
-            confirmed_paths = set(paths)
+            confirmed_paths = frozenset(paths)
             path_list = "\n".join(f"• {path}" for path in paths)
             confirmation_text = f"{tr('The following installed folders will be backed up and removed.')}\n\n{path_list}"
             w = MessageBox(tr("Delete installed folders"), confirmation_text, parent=self.view)
             if w.exec_():
                 def action(task):
-                    current_paths = catalogue.get_removable_paths(snap.id)
-                    if current_paths is None or set(current_paths) != confirmed_paths:
-                        raise ValueError(tr("The installed folders changed. Review the list and try again."))
-                    result = catalogue.remove_installed_copies_with_result(snap.id, message_callback=task.update_task_message)
+                    remove = catalogue.remove_installed_copies_with_result
+                    if "expected_paths" in signature(remove).parameters:
+                        result = remove(
+                            snap.id,
+                            expected_paths=confirmed_paths,
+                            message_callback=task.update_task_message,
+                        )
+                    else:
+                        # The published 1.0.3 API has no expected_paths argument.
+                        with catalogue_access(catalogue.path_catalogue):
+                            current_paths = catalogue.get_removable_paths(snap.id)
+                            records = InstalledCopyRegistry(catalogue.path_catalogue).get(snap.id)
+                            if (
+                                current_paths is None or set(current_paths) != confirmed_paths
+                                or records is None or {record.path for record in records} != confirmed_paths
+                            ):
+                                raise ValueError(tr("The installed folders changed. Review the list and try again."))
+                            result = remove(snap.id, message_callback=task.update_task_message)
                     if result.backup_path is not None:
                         logger.info(f"Installed folders deletion for {snap.name} completed.")
                         self.__log_automatic_backup(snap, result.backup_path, "remove installed folders")
