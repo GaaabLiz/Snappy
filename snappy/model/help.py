@@ -134,7 +134,7 @@ class HelpModel(QObject):
                    "Key Configuration Areas:\n"
                    "• Catalogue Path: The absolute path on your system where all snapshots are physically stored. You can change this to a secondary drive or a synced cloud folder.\n"
                    "• Organization: Define your globally available 'Tags' and 'Custom Fields' to standardize how you categorize snapshots.\n"
-                   "• Favorites: Register your most-used Directories, Files, Executables, and Services. This allows Snappy to provide quick-access shortcuts throughout the app.\n"
+                   "• Favorites: Register directories and files you use often for quick access throughout the app.\n"
                    "• Safety & Backups: Toggle the automatic backup triggers (Before Install, Before Edit, Before Delete). You can also define the directory where these temporary safety backups are kept.\n"
                    "• Installation Rules: Toggle 'Clear snap attached folders before install'. When enabled, Snappy will completely wipe the target directory before copying the snapshot files, preventing stale files from lingering.\n"
                    "• Appearance & Locale: Switch between Light and Dark themes, and change the application language. (Note: Theme and language changes require an application restart)."),

@@ -34,7 +34,11 @@ class TaskGetMonitoredSoftware(Task):
             list[SoftwareData]: A list of SoftwareData objects representing the monitored applications.
         """
         logger.debug("Fetching monitored software list...")
-        data_list: list[str] = app_settings.get(AppSettings.starred_exes)
+        setting_item = getattr(AppSettings, "starred_exes", None)
+        if setting_item is None:
+            return []
+
+        data_list: list[str] = app_settings.get(setting_item)
         data_objs: list[SoftwareData] = []
         # for i in range(1, 50000000):
         #     progress = int((i / 50000000) * 100)

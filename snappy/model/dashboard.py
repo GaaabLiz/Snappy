@@ -167,7 +167,7 @@ class DashboardModel(QObject):
 
     def update(self) -> bool:
         """
-        Triggers an asynchronous update of the dashboard data by retrieving snapshots and monitored software.
+        Triggers an asynchronous update of the dashboard data by retrieving snapshots.
 
         Returns:
             bool: Whether a new dashboard update was started.
@@ -179,10 +179,8 @@ class DashboardModel(QObject):
 
         self.operation_active = True
         try:
-            tasks = [
-                self.task_monitored_soft,
-                self.task_snap,
-            ]
+            # Executable monitoring remains implemented but is intentionally inactive.
+            tasks = [self.task_snap]
             self.runner.clear()
             op = Operation(tasks, self.operation_info)
             self.runner.add(op)
@@ -246,7 +244,7 @@ class DashboardModel(QObject):
             snapshots = op.get_task_result_by_id(self.task_snap.id)
             data = SnappyData(
                 snapshots=snapshots,
-                monitored_software=op.get_task_result_by_id(self.task_monitored_soft.id),
+                monitored_software=[],
             )
             data.home_statistics = getattr(self.task_snap, "home_statistics", None)
             self.signal_on_updated_data_available.emit(data)
