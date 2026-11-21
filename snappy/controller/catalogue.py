@@ -77,12 +77,12 @@ class CatalogueController:
         self.view.reload_data()
 
     @staticmethod
-    def __log_automatic_backup(snap: Snapshot, enabled: bool, operation: str):
-        if enabled:
+    def __log_automatic_backup(snap: Snapshot, backup_path: Path | None, operation: str):
+        if backup_path is not None:
             log_action(
                 ActionCategory.BACKUPS,
                 ActionType.BACKUP_CREATED,
-                f"snapshot={snap.name}; before={operation}",
+                f"snapshot={snap.name}; before={operation}; archive={backup_path.name}",
             )
 
     def __open_config_dialog(self, edit_mode: bool, snap: Snapshot | None = None):
@@ -116,7 +116,7 @@ class CatalogueController:
                             data_updates=raw_data["custom_data"],
                             message_callback=task.update_task_message,
                         )
-                        self.__log_automatic_backup(snap, result.backup_path is not None, "edit")
+                        self.__log_automatic_backup(snap, result.backup_path, "edit")
                         log_action(ActionCategory.CATALOGUE, ActionType.CATALOGUE_SNAPSHOT_UPDATED, result.snapshot.name)
                         
                     titolo = tr("Configuration modified")
@@ -182,10 +182,9 @@ class CatalogueController:
             if w.exec_():
                 def action(task):
                     clear_dest = app_settings.get(AppSettings.clear_snap_attached_folders_before_install)
-                    backup_before_install = app_settings.get(AppSettings.backup_before_install)
-                    self.dash_model.snap_catalogue.install(snap, clear_destination=clear_dest, progress_callback=task.update_task_progress, message_callback=task.update_task_message)
+                    result = self.dash_model.snap_catalogue.install_with_result(snap, clear_destination=clear_dest, progress_callback=task.update_task_progress, message_callback=task.update_task_message)
                     logger.info(f"Configuration installation {snap.name} completed.")
-                    self.__log_automatic_backup(snap, backup_before_install, "install")
+                    self.__log_automatic_backup(snap, result.backup_path, "install")
                     log_action(ActionCategory.CATALOGUE, ActionType.CATALOGUE_SNAPSHOT_INSTALLED, snap.name)
                 
                 self.dash_model.run_heavy_operation(
@@ -223,10 +222,9 @@ class CatalogueController:
             w = MessageBox(tr("Delete configuration"), tr("Are you sure you want to delete the selected configuration? This operation cannot be undone."), parent=self.view)
             if w.exec_():
                 def action(task):
-                    backup_before_delete = app_settings.get(AppSettings.backup_before_delete)
-                    self.dash_model.snap_catalogue.delete(snap, message_callback=task.update_task_message)
+                    result = self.dash_model.snap_catalogue.delete_with_result(snap, message_callback=task.update_task_message)
                     logger.info(f"Configuration deletion {snap.name} completed.")
-                    self.__log_automatic_backup(snap, backup_before_delete, "delete")
+                    self.__log_automatic_backup(snap, result.backup_path, "delete")
                     log_action(ActionCategory.CATALOGUE, ActionType.CATALOGUE_SNAPSHOT_DELETED, snap.name)
                 
                 self.dash_model.run_heavy_operation(
@@ -360,9 +358,11 @@ class CatalogueController:
             w = MessageBox(tr("Delete installed folders"), confirmation_text, parent=self.view)
             if w.exec_():
                 def action(task):
-                    self.dash_model.snap_catalogue.remove_installed_copies(snap.id, message_callback=task.update_task_message)
-                    logger.info(f"Installed folders deletion for {snap.name} completed.")
-                    log_action(ActionCategory.CATALOGUE, ActionType.CATALOGUE_INSTALLED_FOLDERS_DELETED, snap.name)
+                    result = self.dash_model.snap_catalogue.remove_installed_copies_with_result(snap.id, message_callback=task.update_task_message)
+                    if result.backup_path is not None:
+                        logger.info(f"Installed folders deletion for {snap.name} completed.")
+                        self.__log_automatic_backup(snap, result.backup_path, "remove installed folders")
+                        log_action(ActionCategory.CATALOGUE, ActionType.CATALOGUE_INSTALLED_FOLDERS_DELETED, snap.name)
                 
                 self.dash_model.run_heavy_operation(
                     tr("Delete installed folders"),
@@ -385,10 +385,9 @@ class CatalogueController:
             w = MessageBox(tr("Update associated folders"), tr("Are you sure you want to update the associated folders of the selected snapshot with the currently installed ones?"), parent=self.view)
             if w.exec_():
                 def action(task):
-                    backup_before_edit = app_settings.get(AppSettings.backup_before_edit)
-                    self.dash_model.snap_catalogue.update_assoc_with_installed(snap.id, message_callback=task.update_task_message)
+                    result = self.dash_model.snap_catalogue.sync_with_result(snap.id, message_callback=task.update_task_message)
                     logger.info(f"Associated folders update for {snap.name} completed.")
-                    self.__log_automatic_backup(snap, backup_before_edit, "update with local")
+                    self.__log_automatic_backup(snap, result.backup_path, "update with local")
                     log_action(ActionCategory.CATALOGUE, ActionType.CATALOGUE_ASSOCIATED_FOLDERS_UPDATED, snap.name)
                 
                 self.dash_model.run_heavy_operation(

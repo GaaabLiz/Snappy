@@ -3,6 +3,8 @@ import types
 from pathlib import Path
 from unittest.mock import Mock
 
+from pylizlib.core.os.snap import SnapshotOperationResult
+
 def test_catalogue_controller(monkeypatch):
     # Mock i18n
     import snappy.application.i18n
@@ -124,14 +126,14 @@ def test_catalogue_controller(monkeypatch):
             self.update_snapshot_with_result = Mock(return_value=types.SimpleNamespace(
                 snapshot=FakeSnapshot("s1", "Edited"), backup_path=Path("/backups/edit.zip"),
             ))
-        def remove_installed_copies(self, id, message_callback=None): pass
-        def install(self, s, clear_destination=True, progress_callback=None, message_callback=None): progress_callback(10) if progress_callback else None
-        def delete(self, s, progress_callback=None, message_callback=None): pass
+            self.install_with_result = Mock(return_value=SnapshotOperationResult(None))
+            self.delete_with_result = Mock(return_value=SnapshotOperationResult(Path("/backups/delete.zip")))
+            self.remove_installed_copies_with_result = Mock(return_value=SnapshotOperationResult(Path("/backups/remove.zip")))
+            self.sync_with_result = Mock(return_value=SnapshotOperationResult(Path("/backups/sync.zip")))
         def get_snap_directory_path(self, s): return Path("/snap/dir")
         def duplicate_by_id(self, id, progress_callback=None, message_callback=None): pass
         def export_snapshot(self, id, d, progress_callback=None, message_callback=None): pass
         def export_assoc_dirs(self, id, d, progress_callback=None, message_callback=None): pass
-        def update_assoc_with_installed(self, id, progress_callback=None, message_callback=None): pass
     class FakeDash:
         def __init__(self):
             self.cached_data = None
@@ -178,11 +180,19 @@ def test_catalogue_controller(monkeypatch):
     assert catalogue.update_snapshot_with_result.call_args.kwargs["directory_paths"] == ["/source/one"]
     
     # __install_snapshot
+    prior_actions = len(actions)
     ctrl.view.signal_install_requested.emit(snap)
-    assert actions[-1][1] == ActionType.CATALOGUE_SNAPSHOT_INSTALLED
+    catalogue.install_with_result.assert_called_once_with(
+        snap, clear_destination=True, progress_callback=task.update_task_progress, message_callback=task.update_task_message,
+    )
+    assert [action[1] for action in actions[prior_actions:]] == [ActionType.CATALOGUE_SNAPSHOT_INSTALLED]
+
+    catalogue.install_with_result.return_value = SnapshotOperationResult(Path("/backups/install.zip"))
+    ctrl.view.signal_install_requested.emit(snap)
     
     # __delete_snapshot
     ctrl.view.signal_delete_requested.emit(snap)
+    catalogue.delete_with_result.assert_called_once_with(snap, message_callback=task.update_task_message)
     assert actions[-1][1] == ActionType.CATALOGUE_SNAPSHOT_DELETED
     
     # __open_snap_directory (exists mock)
@@ -223,20 +233,25 @@ def test_catalogue_controller(monkeypatch):
     
     # __delete_snap_installed_dirs
     ctrl.view.signal_delete_installed_folders_requested.emit(snap)
+    catalogue.remove_installed_copies_with_result.assert_called_once_with("s1", message_callback=task.update_task_message)
     assert actions[-1][1] == ActionType.CATALOGUE_INSTALLED_FOLDERS_DELETED
     
     # __update_assoc_dirs_from_installed
     ctrl.view.signal_update_with_local_dirs_requested.emit(snap)
+    catalogue.sync_with_result.assert_called_once_with("s1", message_callback=task.update_task_message)
     assert actions[-1][1] == ActionType.CATALOGUE_ASSOCIATED_FOLDERS_UPDATED
     automatic_backups = {
         (action_type, details)
         for _, action_type, details in actions
         if action_type == ActionType.BACKUP_CREATED
     }
-    assert (ActionType.BACKUP_CREATED, "snapshot=Snap1; before=edit") in automatic_backups
-    assert (ActionType.BACKUP_CREATED, "snapshot=Snap1; before=install") in automatic_backups
-    assert (ActionType.BACKUP_CREATED, "snapshot=Snap1; before=delete") in automatic_backups
-    assert (ActionType.BACKUP_CREATED, "snapshot=Snap1; before=update with local") in automatic_backups
+    assert automatic_backups == {
+        (ActionType.BACKUP_CREATED, "snapshot=Snap1; before=edit; archive=edit.zip"),
+        (ActionType.BACKUP_CREATED, "snapshot=Snap1; before=install; archive=install.zip"),
+        (ActionType.BACKUP_CREATED, "snapshot=Snap1; before=delete; archive=delete.zip"),
+        (ActionType.BACKUP_CREATED, "snapshot=Snap1; before=remove installed folders; archive=remove.zip"),
+        (ActionType.BACKUP_CREATED, "snapshot=Snap1; before=update with local; archive=sync.zip"),
+    }
     
     # test cancel modal / dialogs
     FakeDialogConfig.res = False
