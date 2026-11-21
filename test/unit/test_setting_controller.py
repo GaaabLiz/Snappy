@@ -229,6 +229,31 @@ def test_setting_controller(monkeypatch, tmp_path):
     assert actions[-1][1] == ActionType.SETTINGS_RESTART_CONFIRMED
     assert len(processes) == 1
     assert len(quits) == 1
+
+    class FrozenProcess:
+        def setProcessEnvironment(self, environment):
+            self.environment = environment
+
+        def setProgram(self, program):
+            self.program = program
+
+        def setArguments(self, args):
+            self.args = args
+
+        def startDetached(self):
+            processes.append((self.program, self.args, self.environment.value("PYINSTALLER_RESET_ENVIRONMENT")))
+            return True
+
+    with monkeypatch.context() as bundled:
+        import snappy.controller.setting as setting_module
+
+        bundled.setattr(sys, "frozen", True, raising=False)
+        bundled.setattr(sys, "executable", "/app/Snappy")
+        bundled.setattr(sys, "argv", ["/app/Snappy", "--example"])
+        bundled.setattr(setting_module, "QProcess", FrozenProcess)
+        ctrl.view.signal_language_changed.emit()
+        assert processes[-1] == ("/app/Snappy", ["--example"], "1")
+        assert len(quits) == 2
     
     # ask cat
     ctrl.view.signal_ask_catalogue_path.emit()
