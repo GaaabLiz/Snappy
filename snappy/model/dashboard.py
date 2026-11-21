@@ -72,6 +72,8 @@ class DashboardModel(QObject):
         update_dashboard: bool = True,
         error_msg_title: str = "",
         error_msg_template: str = "",
+        *,
+        show_result_message: bool = False,
     ):
         """
         Executes a potentially time-consuming heavy operation asynchronously.
@@ -85,6 +87,7 @@ class DashboardModel(QObject):
             update_dashboard (bool, optional): Whether to refresh the dashboard after the operation. Defaults to True.
             error_msg_title (str, optional): The title to use for a failed operation. Defaults to "Error".
             error_msg_template (str, optional): An optional translated error message with an {error} placeholder.
+            show_result_message (bool): Use the task's returned (title, message) for completion feedback.
         """
         if self.operation_active:
             self.signal_on_update_already_running.emit()
@@ -124,7 +127,9 @@ class DashboardModel(QObject):
                     self.operation_active = False
                     self.signal_on_update_complete.emit()
             else:
-                if success_msg_title and success_msg:
+                if show_result_message and task.result is not None:
+                    self.signal_on_heavy_operation_success.emit(*task.result)
+                elif success_msg_title and success_msg:
                     self.signal_on_heavy_operation_success.emit(success_msg_title, success_msg)
                 if update_dashboard:
                     # No signals or UI unlock between the operation and its refresh.

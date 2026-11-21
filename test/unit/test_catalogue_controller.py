@@ -167,8 +167,11 @@ def test_catalogue_controller(monkeypatch, tmp_path):
         def __init__(self):
             self.cached_data = None
             self.snap_catalogue = FakeCat()
-        def run_heavy_operation(self, n, d, func, success_msg_title="", success_msg="", update_dashboard=True):
-            func(task)
+            self.result_messages = []
+        def run_heavy_operation(self, n, d, func, success_msg_title="", success_msg="", update_dashboard=True, *, show_result_message=False):
+            result = func(task)
+            if show_result_message:
+                self.result_messages.append(result)
     dash_mod.DashboardModel = FakeDash
     monkeypatch.setitem(sys.modules, "snappy.model.dashboard", dash_mod)
 
@@ -201,11 +204,23 @@ def test_catalogue_controller(monkeypatch, tmp_path):
     ctrl.view.signal_import_requested.emit()
     catalogue.import_snapshot.assert_called_once_with(Path(FakeQFileDialog.zip_file))
     assert actions[-1][1:] == (ActionType.CATALOGUE_SNAPSHOTS_IMPORTED, "example.zip (1)")
+    assert ctrl.dash_model.result_messages[-1][0] == "Import complete"
     FakeQInputDialog.source_index = 1
     catalogue.get_all.side_effect = [[snap], [snap, FakeSnapshot("s2", "Imported")]]
     ctrl.view.signal_import_requested.emit()
     catalogue.import_catalogue.assert_called_once_with(Path(FakeQFileDialog.zip_file))
     assert actions[-1][1:] == (ActionType.CATALOGUE_SNAPSHOTS_IMPORTED, "example.zip (1)")
+    assert ctrl.dash_model.result_messages[-1][0] == "Archive processed"
+
+    catalogue.import_catalogue_with_report = Mock(return_value=types.SimpleNamespace(
+        imported=["s2"], skipped=["s1"], failed={"s3": "Missing capture."},
+    ))
+    ctrl.view.signal_import_requested.emit()
+    catalogue.import_catalogue_with_report.assert_called_once_with(Path(FakeQFileDialog.zip_file))
+    title, description = ctrl.dash_model.result_messages[-1]
+    assert title == "Import incomplete"
+    assert "Imported: 1. Already present: 1. Failed: 1." in description
+    assert "s3: Missing capture." in description
     FakeQInputDialog.source_index = 0
     filename = FakeQFileDialog.zip_file
     FakeQFileDialog.zip_file = ""
