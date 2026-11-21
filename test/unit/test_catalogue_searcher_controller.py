@@ -77,9 +77,13 @@ def test_catalogue_searcher_controller(monkeypatch):
     view_mod.SnapshotResultsDialog = FakeResultsDialog
     monkeypatch.setitem(sys.modules, "snappy.view.catalogue_searcher", view_mod)
     
+    from snappy.model.catalogue_searcher import SearchOutcome
+
     model_mod = types.ModuleType("snappy.model.catalogue_searcher")
+    model_mod.SearchOutcome = SearchOutcome
     class FakeTM:
         def remove_snapshot(self, row): pass
+        def get_data(self): return []
     class FakeTreeMan:
         def __init__(self): self.model = None
         def populate_from_results(self, r): pass
@@ -95,7 +99,9 @@ def test_catalogue_searcher_controller(monkeypatch):
             self.catalogue = FakeCat()
         def search(self, t, q, s, e): return True
         def stop_search(self): pass
-        def load_snapshots_from_catalogue(self, s): return True
+        def set_snapshots(self, snapshots):
+            self.visible = snapshots
+            return True
     model_mod.CatalogueSearcherModel = FakeModel
     model_mod.SearchResultsTreeModel = FakeTreeMan
     monkeypatch.setitem(sys.modules, "snappy.model.catalogue_searcher", model_mod)
@@ -143,17 +149,28 @@ def test_catalogue_searcher_controller(monkeypatch):
     
     # stop
     ctrl.view.action_stop.triggered.emit()
-    assert actions[-1][1] == ActionType.SEARCH_STOPPED
     assert ctrl.view.op_status is True
     assert not ctrl.view.action_start.enabled
-    
-    # finish
-    ctrl.model.signal_search_finished.emit([])
+
+    ctrl.model.signal_search_finished.emit(SearchOutcome(cancelled=True))
+    assert actions[-1][1] == ActionType.SEARCH_STOPPED
+    ctrl.model.signal_search_finished.emit(SearchOutcome(limited=[("Snapshot", "More matches")]))
+    assert actions[-1][1] == ActionType.SEARCH_PARTIAL
+    ctrl.model.signal_search_finished.emit(SearchOutcome())
     assert actions[-1][1] == ActionType.SEARCH_COMPLETED
     
     # filter changed
+    first = types.SimpleNamespace(id="some_id", name="first")
+    second = types.SimpleNamespace(id="other", name="second")
+    ctrl.update_snapshots([first, second])
     ctrl.view.signal_snapshot_filter_changed.emit(["some_id"])
+    renamed = types.SimpleNamespace(id="some_id", name="renamed")
+    ctrl.update_snapshots([renamed, second])
+    assert ctrl.model.visible == [renamed]
+    ctrl.update_snapshots([second])
+    assert ctrl.model.visible == []
     ctrl.view.signal_snapshot_filter_changed.emit([])
+    assert ctrl.model.visible == [second]
     
     # snapshot double click
     class FakeSnap:
