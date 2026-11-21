@@ -2,7 +2,7 @@ import os
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QProcess, QUrl, Qt, QTimer
+from PySide6.QtCore import QProcess, QProcessEnvironment, QUrl, Qt, QTimer
 from PySide6.QtGui import QIcon, QDesktopServices
 from PySide6.QtWidgets import QFileDialog, QApplication
 from pylizlib.qtfw.widgets.dialog.about import AboutMessageBox
@@ -97,10 +97,18 @@ class SettingController:
         if not args:
             self.__show_restart_error(tr("The application entry point is unavailable."))
             return
-        args[0] = os.path.abspath(args[0])
-
         try:
-            result = QProcess.startDetached(sys.executable, args)
+            if getattr(sys, "frozen", False):
+                environment = QProcessEnvironment.systemEnvironment()
+                environment.insert("PYINSTALLER_RESET_ENVIRONMENT", "1")
+                process = QProcess()
+                process.setProcessEnvironment(environment)
+                process.setProgram(sys.executable)
+                process.setArguments(args[1:])
+                result = process.startDetached()
+            else:
+                args[0] = os.path.abspath(args[0])
+                result = QProcess.startDetached(sys.executable, args)
             started = result[0] if isinstance(result, tuple) else bool(result)
         except Exception as error:
             started = False
