@@ -10,6 +10,40 @@ def test_network_folder_validator():
     assert validator.correct(123) == "123"
     assert validator.correct(None) == ""
 
+
+def test_unavailable_backup_path_preserves_other_saved_preferences(tmp_path):
+    import json
+
+    from qfluentwidgets import QConfig
+
+    unavailable = tmp_path / "backup"
+    unavailable.touch()
+    catalogue_path = (tmp_path / "my-catalogue").as_posix()
+    config_file = tmp_path / "Settings.json"
+    config_file.write_text(json.dumps({
+        "Backups": {"Backup Path": unavailable.as_posix(), "Backup Before Install": False},
+        "Configurazioni": {"Catalogue Path": catalogue_path},
+        "App": {"Language": "it"},
+    }), encoding="utf-8")
+    items = (
+        app.AppSettings.backup_path, app.AppSettings.backup_before_install,
+        app.AppSettings.catalogue_path, app.AppSettings.language,
+    )
+    previous = [item.value for item in items]
+    try:
+        reader = QConfig()
+        reader.load(config_file, app.AppSettings())
+        assert [item.value for item in items] == [unavailable.as_posix(), False, catalogue_path, "it"]
+        reader.save()
+        assert json.loads(config_file.read_text(encoding="utf-8"))["App"]["Language"] == "it"
+        future_folder = tmp_path / "future"
+        assert app.AppSettings.backup_path.validator.correct(future_folder) == future_folder.as_posix()
+        assert not future_folder.exists()
+    finally:
+        for item, value in zip(items, previous):
+            item.value = value
+
+
 def test_sync_snap_settings_immediate(qtbot):
     from snappy.application.app import AppSettings, snap_settings
     from snappy.controller.setting import SettingController

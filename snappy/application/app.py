@@ -12,7 +12,7 @@ from pylizlib.core.os.snap.storage.archive_limits import DEFAULT_MAX_ARCHIVE_ENT
 from pylizlib.core.os.windows.commands import PATH_DEFAULT_GIT_BASH
 from pylizlib.qtfw.domain.setting import QtFwQConfigItem
 from pylizlib.qtfw.model.qconfig import TextListValidator, ExecutableValidator
-from qfluentwidgets import QConfig, BoolValidator, qconfig, FolderValidator, OptionsValidator, OptionsConfigItem, ConfigValidator
+from qfluentwidgets import QConfig, BoolValidator, qconfig, OptionsValidator, OptionsConfigItem, ConfigValidator
 
 from snappy.project import version, name, authors
 
@@ -105,6 +105,16 @@ class NetworkFolderValidator(ConfigValidator):
         """
         return str(value) if value else ""
 
+
+class BackupFolderValidator(NetworkFolderValidator):
+    """Normalize a backup path without opening or creating the directory."""
+
+    def correct(self, value):
+        if not isinstance(value, (str, Path)) or not value:
+            return PATH_BACKUPS.as_posix()
+        return Path(value).absolute().as_posix()
+
+
 # DEFINITION OF APPLICATION SETTINGS
 class AppSettings(QConfig):
     """
@@ -119,7 +129,7 @@ class AppSettings(QConfig):
     backup_before_install = QtFwQConfigItem(True, SETTING_GROUP_BACKUPS, "Backup Before Install", DEFAULT_SETTING_CONFIG_BACKUP_BEFORE_INSTALL, BoolValidator())
     backup_before_edit = QtFwQConfigItem(True, SETTING_GROUP_BACKUPS, "Backup Before Edit", DEFAULT_SETTING_CONFIG_BACKUP_BEFORE_EDIT, BoolValidator())
     backup_before_delete = QtFwQConfigItem(True, SETTING_GROUP_BACKUPS, "Backup Before Delete", DEFAULT_SETTING_CONFIG_BACKUP_BEFORE_DELETE, BoolValidator())
-    backup_path = QtFwQConfigItem(True, SETTING_GROUP_BACKUPS, "Backup Path", PATH_BACKUPS.__str__(), FolderValidator())
+    backup_path = QtFwQConfigItem(True, SETTING_GROUP_BACKUPS, "Backup Path", PATH_BACKUPS.as_posix(), BackupFolderValidator())
     snap_custom_data = QtFwQConfigItem(True, SETTING_GROUP_CONFIGS, "Snapshots custom data", DEFAULT_SETTING_SNAPSHOTS_CUSTOM_DATA, TextListValidator())
     git_bash_path = QtFwQConfigItem(True, SETTING_GROUP_SCRIPTS, "Git Bash path", DEFAULT_SETTING_PATH_GIT_BASH, ExecutableValidator())
     starred_dirs = QtFwQConfigItem(True, SETTING_GROUP_FAVORITES,"Cartelle preferite", DEFAULT_SETTING_STARRED_DIRS, TextListValidator())
