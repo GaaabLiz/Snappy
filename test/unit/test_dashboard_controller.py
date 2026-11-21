@@ -75,8 +75,9 @@ def _import_dashboard_module(monkeypatch):
             self.open_calls = []
             self.snapshots = []
 
-        def update_snapshots(self, snapshots):
+        def update_snapshots(self, snapshots, *, reset_scope=False):
             self.snapshots = snapshots
+            self.scope_reset = reset_scope
 
         def open(self, snapshot=None):
             self.open_calls.append(snapshot)
@@ -118,6 +119,7 @@ def _import_dashboard_module(monkeypatch):
             self.signal_on_update_started = FakeSignal()
             self.signal_on_update_complete = FakeSignal()
             self.signal_on_updated_data_available = FakeSignal()
+            self.signal_on_catalogue_invalidated = FakeSignal()
             self.signal_on_update_progress = FakeSignal()
             self.signal_on_update_text = FakeSignal()
             self.signal_on_update_detail_text = FakeSignal()
@@ -345,3 +347,20 @@ def test_handle_data_updated_distributes_worker_data(monkeypatch):
     assert controller.backup.update_data_calls == 1
     assert controller.backup.backups is data.backups
     assert not any(action[1] == "dashboard.data.loaded" for action in actions)
+
+
+def test_catalogue_invalidation_clears_previous_views(monkeypatch):
+    dashboard_module, _ = _import_dashboard_module(monkeypatch)
+    controller = dashboard_module.DashboardController()
+    controller.start()
+    data = types.SimpleNamespace(snapshots=["old"], home_statistics=None, backup_count=1, backups=["archive"])
+    controller.model.signal_on_updated_data_available.emit(data)
+    controller.model.signal_on_catalogue_invalidated.emit()
+
+    assert controller.cached_data is None
+    assert controller.catalogue.update_data_calls[-1].snapshot_list == []
+    assert controller.home.update_data_calls[-1].snapshot_list == []
+    assert controller.searcher.snapshots == []
+    assert controller.searcher.scope_reset
+    assert controller.backup.update_data_calls == 2
+    assert controller.backup.backups == []

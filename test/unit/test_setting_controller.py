@@ -188,6 +188,10 @@ def test_setting_controller(monkeypatch, tmp_path):
             self.operation_active = False
             self.pending = []
             self.rejected = 0
+            self.catalogue_invalidations = 0
+
+        def invalidate_catalogue_data(self):
+            self.catalogue_invalidations += 1
 
         def run_heavy_operation(self, name, description, action, **options):
             if self.operation_active:
@@ -229,6 +233,7 @@ def test_setting_controller(monkeypatch, tmp_path):
     # ask cat
     ctrl.view.signal_ask_catalogue_path.emit()
     assert actions[-1][1] == ActionType.SETTINGS_CATALOGUE_PATH_CHANGED
+    assert dash.catalogue_invalidations == 1
     
     # ask backup
     ctrl.view.signal_ask_backup_path.emit()

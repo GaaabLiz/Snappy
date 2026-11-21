@@ -289,6 +289,27 @@ def test_update_logs_error_if_runner_add_raises(monkeypatch):
     assert "cannot add" in errors[-1][1]
     assert not model.operation_active
 
+
+def test_failed_reload_after_catalogue_change_blocks_operations_until_retry(monkeypatch):
+    dashboard_model_module, _logs = _import_dashboard_model_module(monkeypatch)
+    model = dashboard_model_module.DashboardModel()
+    model.cached_data = object()
+    invalidations = []
+    model.signal_on_catalogue_invalidated.connect(lambda: invalidations.append(True))
+
+    model.invalidate_catalogue_data()
+    model.update()
+    model.on_runner_finished(dashboard_model_module.RunnerStatistics(failed=True))
+    assert invalidations == [True]
+    assert model.get_cached_data() is None
+    assert not model.run_heavy_operation("Delete", "Deleting", lambda: None)
+
+    operation = types.SimpleNamespace(get_task_result_by_id=lambda _task_id: ["new"])
+    assert model.update()
+    model.on_runner_finished(dashboard_model_module.RunnerStatistics(operations=[operation]))
+    assert model.get_cached_data().snapshots == ["new"]
+    assert model.run_heavy_operation("Delete", "Deleting", lambda: None)
+
 def test_dashboard_model_on_runner_stopped(monkeypatch):
     """
     Test on_runner_stopped logs info.

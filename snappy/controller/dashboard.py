@@ -87,6 +87,15 @@ class DashboardController:
             self.history.reload()
 
 
+    def __handle_catalogue_invalidated(self):
+        """Clear every view that could still reference the previous catalogue."""
+        self.cached_data = None
+        empty = SnappySnapshotData(snapshot_list=[])
+        self.catalogue.update_data(empty)
+        self.home.update_data(empty)
+        self.searcher.update_snapshots([], reset_scope=True)
+        self.backup.update_data([])
+
     def __handle_update_started(self):
         """
         Handles the event when a global data refresh starts.
@@ -150,6 +159,7 @@ class DashboardController:
         self.model.signal_on_update_complete.connect(self.__handle_update_complete)
         self.model.signal_on_update_already_running.connect(self.__handle_update_already_running)
         self.model.signal_on_updated_data_available.connect(self.__handle_data_updated)
+        self.model.signal_on_catalogue_invalidated.connect(self.__handle_catalogue_invalidated)
         self.model.signal_on_update_progress.connect(self.__handle_update_progress)
         self.model.signal_on_update_text.connect(self.__handle_update_text)
         self.model.signal_on_update_detail_text.connect(self.__handle_update_detail_text)
