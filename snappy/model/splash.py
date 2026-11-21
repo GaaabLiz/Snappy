@@ -20,7 +20,12 @@ class SplashModel:
             bool: True if the path exists and is a directory, False otherwise.
         """
         catalogue_path = Path(app_settings.get(AppSettings.catalogue_path))
-        return catalogue_path.is_dir()
+        try:
+            if catalogue_path == Path(DEFAULT_SETTING_CATALOGUE_PATH):
+                catalogue_path.mkdir(parents=True, exist_ok=True)
+            return catalogue_path.is_dir()
+        except OSError:
+            return False
 
     def get_catalogue_path_str(self) -> str:
         """
@@ -35,4 +40,5 @@ class SplashModel:
         """
         Resets the catalogue path to the default value and saves the settings.
         """
+        Path(DEFAULT_SETTING_CATALOGUE_PATH).mkdir(parents=True, exist_ok=True)
         app_settings.set(AppSettings.catalogue_path, DEFAULT_SETTING_CATALOGUE_PATH)
