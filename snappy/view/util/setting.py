@@ -1,8 +1,28 @@
+from PySide6.QtCore import QSignalBlocker
 from PySide6.QtWidgets import QSizePolicy, QSpacerItem
 from pylizlib.qtfw.domain.setting import QtFwQConfigItem
-from qfluentwidgets import SettingCardGroup
+from qfluentwidgets import ComboBox, OptionsConfigItem, SettingCard, SettingCardGroup
 
 from snappy.application.app import AppSettings, app_settings
+
+
+class ComboSettingCard(SettingCard):
+    """Display a persisted options setting as a combo box."""
+
+    def __init__(self, item: OptionsConfigItem, icon, title: str, content: str, label=str):
+        super().__init__(icon, title, content)
+        self.combo_box = ComboBox(self)
+        for value in item.options:
+            self.combo_box.addItem(label(value), userData=value)
+        self.hBoxLayout.addWidget(self.combo_box)
+        self.hBoxLayout.addSpacing(16)
+        self.combo_box.currentIndexChanged.connect(lambda index: app_settings.set(item, self.combo_box.itemData(index)))
+        item.valueChanged.connect(self.setValue)
+        self.setValue(app_settings.get(item))
+
+    def setValue(self, value):
+        with QSignalBlocker(self.combo_box):
+            self.combo_box.setCurrentIndex(self.combo_box.findData(value))
 
 
 class SettingGroupManager:

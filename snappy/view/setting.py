@@ -1,11 +1,11 @@
 from PySide6.QtCore import Signal
-from PySide6.QtWidgets import QVBoxLayout
+from PySide6.QtWidgets import QFileDialog, QVBoxLayout
 from pylizlib.qtfw.widgets.card import MasterListSettingCard
 from qfluentwidgets import PushSettingCard, FluentIcon, PushButton, SwitchSettingCard, OptionsSettingCard, ToolTipFilter, ToolTipPosition
 
 from snappy.application.app import app, app_settings, AppSettings
 from snappy.view.util.frame import SnappyQFrame
-from snappy.view.util.setting import SettingGroupManager
+from snappy.view.util.setting import ComboSettingCard, SettingGroupManager
 from snappy.application.i18n import tr
 
 
@@ -89,6 +89,7 @@ class WidgetSettings(SnappyQFrame):
         """
         self.__add_group_snapshot(layout)
         self.__add_group_backups(layout)
+        self.__add_group_search(layout)
         self.__add_group_favorites(layout)
         self.__add_group_app(layout)
         self.__add_group_info(layout)
@@ -168,6 +169,32 @@ class WidgetSettings(SnappyQFrame):
         grp_manager.add_widget(setting_tags, self.card_fav_tags, None)
         grp_manager.add_widget(setting_custom_data, self.card_snap_custom_data, None)
         grp_manager.add_widget(setting_clear_snap_attached_folders_before_install, self.card_clear_snap_attached_folders_before_install, None)
+        setting_permissions = AppSettings.install_with_everyone_full_control
+        self.card_install_with_everyone_full_control = SwitchSettingCard(
+            icon=FluentIcon.SETTING,
+            title=tr("Grant Everyone full control"),
+            content=tr("On Windows, grant Everyone full control of installed folders and their contents."),
+            configItem=setting_permissions,
+        )
+        grp_manager.add_widget(setting_permissions, self.card_install_with_everyone_full_control, None)
+        self.card_copy_strategy = ComboSettingCard(
+            AppSettings.copy_strategy, FluentIcon.COPY, tr("Copy strategy"),
+            tr("Verified copies retry when the source changes during copying."),
+            {"standard": tr("Standard"), "verified": tr("Verified")}.__getitem__,
+        )
+        self.card_copy_metadata = ComboSettingCard(
+            AppSettings.copy_metadata_mode, FluentIcon.COPY, tr("Metadata to preserve"),
+            tr("Extended mode also preserves additional filesystem metadata where supported."),
+            {"basic": tr("Basic"), "extended": tr("Extended")}.__getitem__,
+        )
+        self.card_allow_legacy_snapshots = SwitchSettingCard(
+            icon=FluentIcon.FOLDER, title=tr("Allow legacy snapshots"),
+            content=tr("Allow installation of older snapshots that lack an integrity manifest."),
+            configItem=AppSettings.allow_legacy_snapshots,
+        )
+        grp_manager.add_widget(None, self.card_copy_strategy, None)
+        grp_manager.add_widget(None, self.card_copy_metadata, None)
+        grp_manager.add_widget(AppSettings.allow_legacy_snapshots, self.card_allow_legacy_snapshots, None)
         grp_manager.install_group_on(layout)
 
 
@@ -232,11 +259,59 @@ class WidgetSettings(SnappyQFrame):
 
         grp_manager = SettingGroupManager(tr("Backups"), self)
         grp_manager.add_widget(setting_backup_path, self.card_backup_path, self.signal_ask_backup_path)
+        self.card_archive_temp = PushSettingCard(
+            text=tr("Choose directory"), icon=FluentIcon.FOLDER, title=tr("Temporary archive directory"),
+            content=app_settings.get(AppSettings.archive_temp_directory) or tr("Automatic location"),
+        )
+        self.reset_archive_temp = PushButton(tr("Use automatic location"), self.card_archive_temp)
+        self.card_archive_temp.hBoxLayout.insertWidget(self.card_archive_temp.hBoxLayout.count() - 1, self.reset_archive_temp)
+        self.card_archive_temp.hBoxLayout.insertSpacing(self.card_archive_temp.hBoxLayout.count() - 1, 16)
+        self.reset_archive_temp.setEnabled(bool(app_settings.get(AppSettings.archive_temp_directory)))
+        self.reset_archive_temp.clicked.connect(lambda: app_settings.set(AppSettings.archive_temp_directory, ""))
+        self.card_archive_temp.clicked.connect(self.__choose_archive_temp_directory)
+        AppSettings.archive_temp_directory.valueChanged.connect(self.__show_archive_temp_directory)
+
+        self.card_archive_size = ComboSettingCard(
+            AppSettings.max_archive_gib, FluentIcon.SAVE, tr("Maximum expanded archive size"),
+            tr("Maximum total uncompressed size in a snapshot archive."), lambda value: f"{value} GiB",
+        )
+        self.card_archive_entries = ComboSettingCard(
+            AppSettings.max_archive_entries, FluentIcon.SAVE, tr("Maximum archive entries"),
+            tr("Maximum number of files, folders and metadata entries in a snapshot archive."),
+            lambda value: f"{value:,}",
+        )
+        grp_manager.add_widget(AppSettings.archive_temp_directory, self.card_archive_temp, None)
+        grp_manager.add_widget(None, self.card_archive_size, None)
+        grp_manager.add_widget(None, self.card_archive_entries, None)
         grp_manager.add_widget(setting_backup_before_install, self.card_backup_before_install, None)
         grp_manager.add_widget(setting_backup_before_edit, self.card_backup_before_edit, None)
         grp_manager.add_widget(setting_backup_before_delete, self.card_backup_before_delete, None)
         grp_manager.add_widget(None, self.card_clear_backups, self.signal_clear_backups_request)
         grp_manager.install_group_on(layout)
+
+    def __choose_archive_temp_directory(self):
+        current = app_settings.get(AppSettings.archive_temp_directory)
+        directory = QFileDialog.getExistingDirectory(self, tr("Select the temporary archive directory"), current)
+        if directory:
+            app_settings.set(AppSettings.archive_temp_directory, directory)
+
+    def __show_archive_temp_directory(self, directory: str):
+        self.card_archive_temp.setContent(directory or tr("Automatic location"))
+        self.reset_archive_temp.setEnabled(bool(directory))
+
+    def __add_group_search(self, layout: QVBoxLayout):
+        group = SettingGroupManager(tr("Search settings"), self)
+        self.card_search_max_results = ComboSettingCard(
+            AppSettings.search_max_results, FluentIcon.SEARCH, tr("Maximum results per snapshot"),
+            tr("Maximum number of matches displayed for each snapshot."), lambda value: f"{value:,}",
+        )
+        self.card_search_regex_timeout = ComboSettingCard(
+            AppSettings.search_regex_timeout, FluentIcon.SEARCH, tr("Regex timeout"),
+            tr("Time allowed for each regular-expression match operation."), lambda value: f"{value:g} s",
+        )
+        group.add_widget(None, self.card_search_max_results, None)
+        group.add_widget(None, self.card_search_regex_timeout, None)
+        group.install_group_on(layout)
 
     def __add_group_favorites(self, layout: QVBoxLayout):
         """
