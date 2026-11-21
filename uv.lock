@@ -822,7 +822,7 @@ wheels = [
 
 [[package]]
 name = "pylizlib"
-version = "1.0.3"
+version = "1.0.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "psutil" },
@@ -834,9 +834,9 @@ dependencies = [
     { name = "rich" },
     { name = "typer" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/58/53/7209cf79efac9b8c33f938b825f308c9a825de440d4ebfd979b9705e691e/pylizlib-1.0.3.tar.gz", hash = "sha256:8ae622b7c5ad861408ae321ce4ba9dac7ceca4e3fc663d41da35192473c085c1", size = 254885, upload-time = "2026-11-21T14:36:41.245Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/d9/91/e37249689d9d6c47a1c6048691c9b69dd06dc4ad38ce4d3ad47f8280478c/pylizlib-1.0.4.tar.gz", hash = "sha256:794a206785d3c642f2805ee20b94b26a1fdee25da68a7d1df5619117a019ab0f", size = 256458, upload-time = "2026-11-21T18:58:28.895Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/cc/bf/c319ccee193c2235548570c4735018016cfb163ff0ea89465f5d88f04477/pylizlib-1.0.3-py3-none-any.whl", hash = "sha256:d82ae33177f11d7c8b44a14a15de1fadd89a9aa1492946a03c81643e43d80b5e", size = 336289, upload-time = "2026-11-21T14:36:39.948Z" },
+    { url = "https://files.pythonhosted.org/packages/ad/cb/a42946f6742361ec002977c9f077389f78d948ec8cc193631d109a89c668/pylizlib-1.0.4-py3-none-any.whl", hash = "sha256:c2ca18af9f8c15d853341424eb1ff70ac93e63cd6fe65573ee21f640f157341c", size = 337880, upload-time = "2026-11-21T18:58:27.495Z" },
 ]
 
 [package.optional-dependencies]
@@ -4195,8 +4195,8 @@ dev = [
 requires-dist = [
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "loguru-logging-intercept", specifier = ">=0.1.5" },
-    { name = "pylizlib", specifier = ">=1.0.3" },
-    { name = "pylizlib", extras = ["qtfw"], marker = "extra == 'qtfw'", specifier = ">=1.0.3" },
+    { name = "pylizlib", specifier = ">=1.0.4" },
+    { name = "pylizlib", extras = ["qtfw"], marker = "extra == 'qtfw'", specifier = ">=1.0.4" },
     { name = "pyside6", specifier = ">=6.11.0" },
     { name = "pyside6-fluent-widgets", extras = ["full"], specifier = ">=1.11.2" },
 ]
