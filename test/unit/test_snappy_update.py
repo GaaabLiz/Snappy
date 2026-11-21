@@ -3,7 +3,7 @@ import types
 from pathlib import Path
 from unittest.mock import Mock
 
-from pylizlib.core.os.snap import BackupType, Snapshot, SnapshotCatalogueStatistics
+from pylizlib.core.os.snap import BackupType, Snapshot, SnapshotBackupInfo, SnapshotCatalogueStatistics
 
 
 def _import_snappy_update_module(monkeypatch, starred_exes=None):
@@ -56,6 +56,7 @@ def _import_snappy_update_module(monkeypatch, starred_exes=None):
     fake_snap_module = types.ModuleType("pylizlib.core.os.snap")
     fake_snap_module.BackupType = BackupType
     fake_snap_module.Snapshot = Snapshot
+    fake_snap_module.SnapshotBackupInfo = SnapshotBackupInfo
     fake_snap_module.SnapshotCatalogue = object
     fake_snap_module.SnapshotCatalogueStatistics = SnapshotCatalogueStatistics
 
@@ -160,10 +161,11 @@ def test_task_get_snapshots_execute_delegates_to_catalogue(monkeypatch, tmp_path
     assert task.name == "TR:Retrieving saved snapshots"
     assert task.execute() == ["s1", "s2"]
     catalogue.get_all.assert_called_once_with()
-    catalogue.get_statistics.assert_called_once_with(include_backups=False)
+    catalogue.get_statistics.assert_called_once_with(include_backups=False, snapshots=catalogue.get_all.return_value)
     catalogue.list_backups.assert_called_once_with(tmp_path)
     assert task.home_statistics is statistics
     assert task.backup_count == 2
+    assert task.backups is catalogue.list_backups.return_value
 
     catalogue.get_statistics.side_effect = OSError("Cannot read statistics")
     assert task.execute() == ["s1", "s2"]

@@ -247,6 +247,7 @@ class DashboardModel(QObject):
                 monitored_software=[],
                 home_statistics=self.task_snap.home_statistics,
                 backup_count=self.task_snap.backup_count,
+                backups=self.task_snap.backups,
             )
             self.signal_on_updated_data_available.emit(data)
             self.cached_data = data

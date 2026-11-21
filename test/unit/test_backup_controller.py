@@ -42,7 +42,7 @@ def test_backup_controller(monkeypatch):
     
     model_mod = types.ModuleType("snappy.model.backup")
     class FakeModel:
-        def load_backups(self, c, p): pass
+        def set_backups(self, backups): self.backups = backups
         def get_all_backups(self, p): return []
     model_mod.BackupModel = FakeModel
     monkeypatch.setitem(sys.modules, "snappy.model.backup", model_mod)
@@ -125,7 +125,8 @@ def test_backup_controller(monkeypatch):
     ctrl = BackupController(dash)
     
     # update_data
-    ctrl.update_data()
+    ctrl.update_data([])
+    assert ctrl.model.backups == []
     assert ctrl.view.reloaded
     
     # test __handle_open

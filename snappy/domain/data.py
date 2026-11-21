@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 
-from pylizlib.core.os.snap import Snapshot, SnapshotCatalogueStatistics
+from pylizlib.core.os.snap import Snapshot, SnapshotBackupInfo, SnapshotCatalogueStatistics
 from pylizlib.qtfw.domain.sw import SoftwareData
 
 
@@ -35,4 +35,4 @@ class SnappyData:
     snapshots: list[Snapshot] = field(default_factory=list)
     home_statistics: SnapshotCatalogueStatistics | None = None
     backup_count: int | None = None
-
+    backups: list[SnapshotBackupInfo] | None = None

@@ -24,6 +24,7 @@ class ActionHistoryController:
         self.view = ActionHistoryView()
         self._storage_initialized = None
         self._warning_shown = False
+        self.view.opened.connect(self.reload)
 
     def initialize_storage(self) -> bool:
         """Initializes the history database and remembers whether it is available."""

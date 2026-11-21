@@ -1,12 +1,9 @@
-from pathlib import Path
-
 from PySide6.QtCore import Qt
 from loguru import logger
 from pylizlib.qt.domain.view import UiWidgetMode
 from pylizlib.qtfw.util.ui import UiUtils
 from qfluentwidgets import FluentIcon, InfoBar, InfoBarPosition, NavigationItemPosition
 
-from snappy.application.app import app_settings, AppSettings
 from snappy.application.i18n import tr
 from snappy.model.history import log_action, ActionCategory, ActionType
 from snappy.controller.history import ActionHistoryController
@@ -83,11 +80,11 @@ class DashboardController:
         self.cached_data = data
         self.catalogue.update_data(snap_data)
         self.home.update_data(snap_data)
-        self.searcher.open()
-        self.backup.update_data()
-        self.history.reload()
-
-        self.model.snap_catalogue.path_catalogue = Path(app_settings.get(AppSettings.catalogue_path))
+        self.searcher.update_snapshots(data.snapshots)
+        if data.backups is not None:
+            self.backup.update_data(data.backups)
+        if self.history.view.isVisible():
+            self.history.reload()
 
 
     def __handle_update_started(self):
@@ -213,6 +210,5 @@ class DashboardController:
         log_action(ActionCategory.DASHBOARD, ActionType.DASHBOARD_APPLICATION_STARTED, "")
         self.view.show()
         self.__connect_signals()
-        self.history.reload()
         self.model.update()
         self.catalogue.init()

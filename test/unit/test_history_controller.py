@@ -7,6 +7,7 @@ def test_history_controller(monkeypatch):
     class FakeActionHistoryView:
         def __init__(self):
             self.rows = []
+            self.opened = types.SimpleNamespace(connect=lambda reload: setattr(self, "open_page", reload))
         def update_rows(self, rows):
             self.rows = rows
     view_mod.ActionHistoryView = FakeActionHistoryView
@@ -25,6 +26,9 @@ def test_history_controller(monkeypatch):
     controller = c.ActionHistoryController()
     if hasattr(controller, "view") and "qtbot" in locals() and hasattr(qtbot, "addWidget"):
         qtbot.addWidget(controller.view)
-    controller.reload()
+    controller.view.open_page()
     
     assert controller.view.rows == ["action1", "action2"]
+    monkeypatch.setattr(c, "list_actions", lambda: ["new action", "action1", "action2"])
+    controller.view.open_page()
+    assert controller.view.rows[0] == "new action"

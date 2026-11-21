@@ -1,8 +1,5 @@
-from pathlib import Path
 
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
-from pylizlib.core.os.snap import SnapshotCatalogue
-from loguru import logger
 from pylizlib.core.os.snap.domain import SnapshotBackupInfo, BackupType
 
 from snappy.application.i18n import tr
@@ -147,20 +144,10 @@ class BackupModel:
         self._backups: list[SnapshotBackupInfo] = []
         self.table_model = BackupTableModel()
 
-    def load_backups(self, catalogue: SnapshotCatalogue, backup_path: Path):
-        """
-        Loads backups from the specified path using the given catalogue.
-
-        Args:
-            catalogue (SnapshotCatalogue): The catalogue to list backups from.
-            backup_path (Path): The path to the backup directory.
-        """
-        logger.debug(f"Loading backups from: {backup_path}")
-        if not backup_path.exists():
-            backup_path.mkdir(parents=True, exist_ok=True)
-        self._backups = catalogue.list_backups(backup_path)
-        self.table_model.set_backups(self._backups)
-        logger.debug(f"Loaded {len(self._backups)} backups.")
+    def set_backups(self, backups: list[SnapshotBackupInfo]):
+        """Display a new list of backups from the dashboard refresh."""
+        self._backups = backups
+        self.table_model.set_backups(backups)
 
     def get_backup_at(self, row: int) -> SnapshotBackupInfo | None:
         """

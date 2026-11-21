@@ -24,6 +24,9 @@ def _import_dashboard_module(monkeypatch):
             self.progress = []
             self.text = []
 
+        def isVisible(self):
+            return False
+
         def set_state(self, state):
             self.states.append(state)
             
@@ -70,6 +73,10 @@ def _import_dashboard_module(monkeypatch):
         def __init__(self, _snap_catalogue, _view, _dash_model):
             self.view = FakePageView("Search")
             self.open_calls = []
+            self.snapshots = []
+
+        def update_snapshots(self, snapshots):
+            self.snapshots = snapshots
 
         def open(self, snapshot=None):
             self.open_calls.append(snapshot)
@@ -166,7 +173,8 @@ def _import_dashboard_module(monkeypatch):
             self.view = FakePageView("Backup")
             self.update_data_calls = 0
 
-        def update_data(self):
+        def update_data(self, backups):
+            self.backups = backups
             self.update_data_calls += 1
 
     fake_action_history_module = types.ModuleType("snappy.model.history")
@@ -251,7 +259,7 @@ def test_start_connects_signals_and_runs_initial_refresh(monkeypatch):
     controller.start()
 
     assert controller.view.shown is True
-    assert controller.history.reload_count == 1
+    assert controller.history.reload_count == 0
     assert controller.model.update_count == 1
     assert controller.catalogue.init_count == 1
     assert ("Dashboard", "dashboard.application.started", "") in actions
@@ -316,13 +324,13 @@ def test_update_started_and_complete_toggle_all_states(monkeypatch):
     assert controller.catalogue.view.text[-1] == "loading..."
 
 
-def test_handle_data_updated_updates_children_and_catalogue_path(monkeypatch):
+def test_handle_data_updated_distributes_worker_data(monkeypatch):
     dashboard_module, actions = _import_dashboard_module(monkeypatch)
     controller = dashboard_module.DashboardController()
     if hasattr(controller, "view") and "qtbot" in locals() and hasattr(qtbot, "addWidget"):
         qtbot.addWidget(controller.view)
 
-    data = types.SimpleNamespace(snapshots=["s1", "s2", "s3"], home_statistics=object(), backup_count=2)
+    data = types.SimpleNamespace(snapshots=["s1", "s2", "s3"], home_statistics=object(), backup_count=2, backups=["archive"])
     controller._DashboardController__handle_data_updated(data)
 
     assert controller.cached_data is data
@@ -332,8 +340,8 @@ def test_handle_data_updated_updates_children_and_catalogue_path(monkeypatch):
     assert controller.catalogue.update_data_calls[0] is controller.home.update_data_calls[0]
     assert controller.home.update_data_calls[0].home_statistics is data.home_statistics
     assert controller.home.update_data_calls[0].backup_count == 2
-    assert controller.searcher.open_calls[-1] is None
-    assert controller.history.reload_count == 1
+    assert controller.searcher.snapshots is data.snapshots
+    assert controller.history.reload_count == 0
     assert controller.backup.update_data_calls == 1
-    assert controller.model.snap_catalogue.path_catalogue == Path("/tmp/snappy-catalogue")
+    assert controller.backup.backups is data.backups
     assert not any(action[1] == "dashboard.data.loaded" for action in actions)
