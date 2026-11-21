@@ -283,3 +283,29 @@ def test_catalogue_searcher_model(monkeypatch):
     class MissingOp:
         id = "missing"
     model.on_operation_finished(MissingOp())
+
+
+def test_remove_snapshot_hides_its_matches_and_keeps_other_results(monkeypatch):
+    searcher_module = _import_searcher_module(monkeypatch)
+    model = searcher_module.CatalogueSearcherModel(None)
+    first = Snapshot("s1", "First", "")
+    second = Snapshot("s2", "Second", "")
+    model.set_snapshots([first, second])
+
+    def operation(snapshot):
+        match = SnapshotSearchResult(
+            snapshot_name=snapshot.name, file_path=Path(snapshot.id) / "file.txt", searched_text="abc",
+        )
+        report = searcher_module.SnapshotSearchReport([match])
+        return types.SimpleNamespace(id=snapshot.id, get_task_results=lambda: [report], is_failed=lambda: False)
+
+    model._op_id_to_snap_id = {first.id: first.id, second.id: second.id}
+    model.runner._all_operations = [operation(first), operation(second)]
+    model.on_runner_finished(types.SimpleNamespace(operations=model.runner._all_operations, cancelled_operations=0))
+    tree = model.tree_model_manager.model
+    assert tree.rowCount() == 2
+
+    model.remove_snapshot(0)
+    assert model.table_model.get_data() == [second]
+    assert tree.rowCount() == 1
+    assert tree.item(0).text() == "Second (1)"

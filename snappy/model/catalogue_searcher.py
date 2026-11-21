@@ -551,6 +551,17 @@ class CatalogueSearcherModel(QObject):
             self._emit_status_card_update()
             self.signal_search_finished.emit(outcome)
 
+    def remove_snapshot(self, row: int):
+        """Remove the selected row and its matches from the search views."""
+        self.table_model.remove_snapshot(row)
+        snapshots = {snapshot.id: snapshot for snapshot in self.table_model.get_data()}
+        groups = []
+        for operation in self.runner._all_operations:
+            snapshot = snapshots.get(self._op_id_to_snap_id.get(operation.id))
+            if snapshot is not None:
+                groups.append((snapshot, self._get_operation_report(operation).results))
+        self.tree_model_manager.populate_from_results(groups)
+
     def get_results_for_snapshot(self, snap_id: str) -> list[SnapshotSearchResult]:
         """
         Retrieves the search results for a specific snapshot.

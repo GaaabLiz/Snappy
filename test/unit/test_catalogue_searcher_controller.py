@@ -99,6 +99,8 @@ def test_catalogue_searcher_controller(monkeypatch):
             self.catalogue = FakeCat()
         def search(self, t, q, s, e): return True
         def stop_search(self): pass
+        def remove_snapshot(self, row):
+            self.table_model.remove_snapshot(row)
         def set_snapshots(self, snapshots):
             self.visible = snapshots
             return True

@@ -70,7 +70,7 @@ class CatalogueSearcherController:
             return
 
         logger.debug(f"Removing row {row} from search results")
-        self.model.table_model.remove_snapshot(row)
+        self.model.remove_snapshot(row)
         self._selected_ids = {snapshot.id for snapshot in self.model.table_model.get_data()}
         self.view.update_snapshot_menu(self._snapshots, self._selected_ids)
         log_action(ActionCategory.SEARCH, ActionType.SEARCH_SNAPSHOT_REMOVED, f"row={row}")
