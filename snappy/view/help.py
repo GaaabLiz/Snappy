@@ -103,7 +103,6 @@ class HelpDetailDialog(QDialog):
 
         scroll = SingleDirectionScrollArea(orient=Qt.Orientation.Vertical, parent=self)
         scroll.setWidgetResizable(True)
-        scroll.enableTransparentBackground()
 
         content_widget = QWidget(scroll)
         content_layout = QVBoxLayout(content_widget)
@@ -115,6 +114,7 @@ class HelpDetailDialog(QDialog):
         content_layout.addStretch(1)
 
         scroll.setWidget(content_widget)
+        scroll.enableTransparentBackground()
 
         btn_close = PrimaryPushButton(tr("Close"), self)
         btn_close.clicked.connect(self.accept)
