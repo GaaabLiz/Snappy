@@ -88,11 +88,12 @@ def _import_dashboard_model_module(monkeypatch):
         def __init__(self, catalogue):
             super().__init__("snapshots")
             self.catalogue = catalogue
+            self.backups = []
             self.home_statistics = None
             self.backup_count = None
 
     class FakeSnappyData:
-        def __init__(self, snapshots=None, monitored_software=None, home_statistics=None, backup_count=None):
+        def __init__(self, snapshots=None, monitored_software=None, home_statistics=None, backup_count=None, backups=None):
             self.snapshots = snapshots
             self.monitored_software = monitored_software
             self.home_statistics = home_statistics

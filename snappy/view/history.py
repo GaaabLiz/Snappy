@@ -1,3 +1,4 @@
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QVBoxLayout, QHeaderView
 from qfluentwidgets import BodyLabel, TableView
 
@@ -11,6 +12,8 @@ class ActionHistoryView(SnappyQFrame):
     A view that displays a log of actions performed by the user within the application.
     It uses a table to present the history in a readable format.
     """
+
+    opened = Signal()
 
     def __init__(self, parent=None):
         """
@@ -56,6 +59,10 @@ class ActionHistoryView(SnappyQFrame):
         container_layout.addWidget(self.table, 1)
 
         self.master_layout.addLayout(container_layout, 1)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self.opened.emit()
 
     def update_rows(self, rows: list[dict[str, str]] | None):
         """

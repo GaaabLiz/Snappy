@@ -1,12 +1,9 @@
-from pathlib import Path
-
 from PySide6.QtCore import QObject, QUrl
 from PySide6.QtGui import QDesktopServices
 from loguru import logger
 from pylizlib.core.os.snap.domain import SnapshotBackupInfo
 from qfluentwidgets import MessageBox
 
-from snappy.application.app import app_settings, AppSettings
 from snappy.model.history import log_action, ActionCategory, ActionType
 from snappy.application.i18n import tr
 from snappy.model.backup import BackupModel
@@ -39,16 +36,9 @@ class BackupController(QObject):
         self.view.signal_restore_requested.connect(self.__handle_restore)
         self.view.signal_delete_requested.connect(self.__handle_delete)
 
-    def update_data(self):
-        """
-        Updates the list of available backups from the configured directory.
-
-        Reloads the internal model and triggers a UI refresh to display
-        the current backups.
-        """
-        logger.debug("Updating backup data...")
-        backup_path = Path(app_settings.get(AppSettings.backup_path))
-        self.model.load_backups(self.snap_catalogue, backup_path)
+    def update_data(self, backups: list[SnapshotBackupInfo]):
+        """Display the backups already loaded by the dashboard worker."""
+        self.model.set_backups(backups)
         self.view.reload_data()
 
     def __handle_open(self, backup: SnapshotBackupInfo):

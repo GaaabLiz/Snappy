@@ -6,13 +6,6 @@ from pylizlib.core.os.snap.domain import SnapshotBackupInfo, BackupType
 
 from snappy.model.backup import BackupTableModel, BackupModel
 
-class FakeSnapshotCatalogue:
-    def __init__(self, backups):
-        self._backups = backups
-
-    def list_backups(self, backup_path):
-        return self._backups
-
 def test_backup_table_model_empty():
     model = BackupTableModel()
     assert model.rowCount() == 0
@@ -77,16 +70,15 @@ def test_backup_table_model_with_data():
     assert model.get_backup(2) == info3
     assert model.get_backup(3) is None
 
-def test_backup_model_load(tmp_path):
-    catalogue = FakeSnapshotCatalogue([
+def test_backup_model_load():
+    backups = [
         SnapshotBackupInfo(file_name="fake.zip", snapshot_id="1", backup_type=BackupType.ASSOCIATED_DIRECTORIES, created_at=None, path=Path("fake.zip"), prefix="", is_export=False)
-    ])
+    ]
     
     model = BackupModel()
     assert model.count() == 0
     
-    model.load_backups(catalogue, tmp_path / "backups")
+    model.set_backups(backups)
     assert model.count() == 1
     assert model.get_backup_at(0).file_name == "fake.zip"
     assert model.get_backup_at(1) is None
-    assert (tmp_path / "backups").exists()
