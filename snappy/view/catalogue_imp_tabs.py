@@ -84,7 +84,8 @@ class DialogConfigTabs(QWidget):
                 "desc": self.tab_details.form_desc_input.text(),
                 "tags": self.tab_details.form_tags_input.get_items(),
                 "custom_data": self.tab_details.get_custom_data(),
-                "directories": [d.__str__() for d in self.tab_directories.directories]
+                "directories": [d.__str__() for d in self.tab_directories.directories],
+                "directories_changed": self.tab_directories.directories_changed,
             }
         except Exception as e:
             logger.error(e)

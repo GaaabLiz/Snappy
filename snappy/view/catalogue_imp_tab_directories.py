@@ -2,6 +2,7 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QListWidgetItem, QFileDialog, QHBoxLayout, QWidget, QSizePolicy, QSpacerItem, QVBoxLayout
+from pylizlib.core.os.paths.identity import same_filesystem_entry
 from pylizlib.core.os.snap import Snapshot
 from pylizlib.qtfw.util.ui import UiUtils
 from qfluentwidgets import FluentIcon, PushButton, Action, RoundMenu, ListWidget
@@ -60,14 +61,15 @@ class TabDirectories(QWidget):
         if self.payload_data:
             for dir_assoc in self.payload_data.directories:
                 self.add_directory(Path(dir_assoc.original_path), execute_checks=False)
-            self._capture_initial_directories_state()
+        self._initial_directories = tuple(self.directories)
 
-    # AGGIUNTO: Metodo per catturare lo stato iniziale delle directory
-    def _capture_initial_directories_state(self):
-        """
-        Captures the initial state of the selected directories to enable tracking of subsequent modifications.
-        """
-        self._initial_directories = set(str(d) for d in self.directories)
+    @property
+    def directories_changed(self) -> bool:
+        """Check whether the ordered folder selection differs from the initial one."""
+        return len(self.directories) != len(self._initial_directories) or any(
+            not same_filesystem_entry(initial.absolute(), selected.absolute())
+            for initial, selected in zip(self._initial_directories, self.directories, strict=True)
+        )
 
     # AGGIUNTO: Metodo per verificare se ci sono state modifiche
     def _check_directories_changed(self):
@@ -78,14 +80,8 @@ class TabDirectories(QWidget):
         Returns:
             None
         """
-        if not hasattr(self, '_initial_directories'):
-            # Se non c'è stato iniziale, considera modificato se ci sono directory
-            return len(self.directories) > 0
-
-        current_directories = set(str(d) for d in self.directories)
-        changed = current_directories != self._initial_directories
-        self.signal_data_changed.emit(changed)
-        return None
+        if self.payload_data is not None:
+            self.signal_data_changed.emit(self.directories_changed)
 
     def __show_context_menu(self, pos):
         """
@@ -164,7 +160,13 @@ class TabDirectories(QWidget):
                 Defaults to True.
         """
         if execute_checks:
-            if directory in self.directories:
+            directory = directory.absolute()
+            try:
+                already_selected = any(same_filesystem_entry(directory, selected.absolute()) for selected in self.directories)
+            except ValueError as error:
+                UiUtils.show_message(tr("Error"), str(error), self)
+                return
+            if already_selected:
                 UiUtils.show_message(tr("Warning"), tr("The selected folder is already in the list."), self)
                 return
             if not directory.exists():

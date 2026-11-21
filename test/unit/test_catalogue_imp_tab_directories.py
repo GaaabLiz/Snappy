@@ -54,3 +54,27 @@ def test_tab_directories(qtbot, monkeypatch):
         def getExistingDirectory(cls, *args): return ""
     monkeypatch.setattr(snappy.view.catalogue_imp_tab_directories, "QFileDialog", FakeQFileDialogEmpty)
     tab._TabDirectories__on_add_directory_request()
+
+
+def test_tab_directories_compares_paths_in_selection_order(qtbot, monkeypatch, tmp_path):
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+    first.mkdir()
+    second.mkdir()
+    alias = first / ".." / first.name
+    snap = Snapshot(id="1", name="n", desc="", directories=[
+        SnapDirAssociation(original_path=str(first), folder_id="a", index=0),
+        SnapDirAssociation(original_path=str(second), folder_id="b", index=1),
+    ])
+    tab = TabDirectories(payload_data=snap)
+    qtbot.addWidget(tab)
+    messages = []
+    monkeypatch.setattr("snappy.view.catalogue_imp_tab_directories.UiUtils.show_message", lambda *args: messages.append(args))
+
+    tab.add_directory(alias)
+    assert tab.directories == [first, second]
+    assert messages
+    tab.directories[:] = [alias, second]
+    assert not tab.directories_changed
+    tab.directories.reverse()
+    assert tab.directories_changed

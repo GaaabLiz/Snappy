@@ -1,7 +1,6 @@
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
 from pylizlib.core.os.snap import Snapshot, SnapshotSortKey
 from pylizlib.core.os.snap.sorting import sort_snapshots
-from pylizlib.core.os.system import get_system_username
 
 from snappy.application.app import app_settings, AppSettings
 from snappy.domain.data import SnappySnapshotData
@@ -165,65 +164,6 @@ class CatalogueModel:
         self._sort_key = SnapshotSortKey.NAME
         self._sort_reverse = False
         self.table_model = SnapshotTableModel()
-
-    def build_snapshot_from_raw(self, raw_data: dict, old_snapshot: Snapshot = None) -> Snapshot:
-        """
-        Factory method to build a rich Snapshot domain object from raw dictionary data
-        provided by the View layer. Handles ID generation, timestamps, and authorship.
-        
-        Args:
-            raw_data (dict): The raw data captured from the UI.
-            old_snapshot (Snapshot, optional): The existing snapshot if we are in edit mode.
-
-        Returns:
-            Snapshot: The newly constructed or updated Snapshot object.
-        """
-        import datetime
-        from pylizlib.core.data.gen import gen_random_string
-        from pylizlib.core.os.snap.domain import SnapshotSettings
-        from pylizlib.core.os.snap import SnapDirAssociation
-
-        settings = SnapshotSettings()
-        assoc = []
-        # Reuse cloned associations to retain their integrity manifests and storage names.
-        data = old_snapshot.clone() if old_snapshot else None
-        existing_assocs = {a.original_path: a for a in data.directories} if data else {}
-
-        index = 0
-        for path_str in raw_data["directories"]:
-            if path_str in existing_assocs:
-                old_a = existing_assocs[path_str]
-                old_a.index = index
-                assoc.append(old_a)
-            else:
-                assoc.append(SnapDirAssociation(
-                    original_path=path_str,
-                    folder_id=gen_random_string(settings.folder_id_length),
-                    index=index
-                ))
-            index += 1
-
-        if data:
-            data.name = raw_data["name"]
-            data.desc = raw_data["desc"]
-            data.tags = raw_data["tags"]
-            data.directories = assoc
-            # Keep existing custom values whose fields are no longer configured.
-            custom_data = dict(old_snapshot.data or {})
-            custom_data.update(raw_data["custom_data"])
-            data.data = custom_data
-            return data
-        else:
-            return Snapshot(
-                id=raw_data["id"],
-                name=raw_data["name"],
-                desc=raw_data["desc"],
-                tags=raw_data["tags"],
-                date_created=datetime.datetime.now(),
-                author=get_system_username(),
-                directories=assoc,
-                data=raw_data["custom_data"]
-            )
 
     def set_snapshots(self, snapshots: list[Snapshot]):
         """

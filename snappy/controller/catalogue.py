@@ -5,6 +5,7 @@ from PySide6.QtGui import QDesktopServices
 from PySide6.QtCore import QUrl
 from loguru import logger
 from pylizlib.core.os.snap import Snapshot
+from pylizlib.core.os.system import get_system_username
 from pylizlib.qtfw.util.ui import UiUtils
 from qfluentwidgets import MessageBox
 
@@ -97,17 +98,26 @@ class CatalogueController:
         try:
             if dialog.exec():
                 raw_data = dialog.output_data
+                if raw_data is None:
+                    return
                 if edit_mode:
+                    if snap is None:
+                        return
                     op_name = tr("Modify configuration")
                     op_desc = tr("Modifying configuration")
                     
                     def action(task):
-                        old = snap
-                        new = self.model.build_snapshot_from_raw(raw_data, old)
-                        backup_before_edit = app_settings.get(AppSettings.backup_before_edit)
-                        self.dash_model.snap_catalogue.update_snapshot_by_objs(old, new, message_callback=task.update_task_message)
-                        self.__log_automatic_backup(snap, backup_before_edit, "edit")
-                        log_action(ActionCategory.CATALOGUE, ActionType.CATALOGUE_SNAPSHOT_UPDATED, new.name)
+                        result = self.dash_model.snap_catalogue.update_snapshot_with_result(
+                            snap.id,
+                            name=raw_data["name"],
+                            desc=raw_data["desc"],
+                            tags=raw_data["tags"],
+                            directory_paths=raw_data["directories"] if raw_data["directories_changed"] else None,
+                            data_updates=raw_data["custom_data"],
+                            message_callback=task.update_task_message,
+                        )
+                        self.__log_automatic_backup(snap, result.backup_path is not None, "edit")
+                        log_action(ActionCategory.CATALOGUE, ActionType.CATALOGUE_SNAPSHOT_UPDATED, result.snapshot.name)
                         
                     titolo = tr("Configuration modified")
                     testo = tr("The configuration has been modified successfully.")
@@ -116,8 +126,17 @@ class CatalogueController:
                     op_desc = tr("Creating configuration")
                     
                     def action(task):
-                        new = self.model.build_snapshot_from_raw(raw_data)
-                        self.dash_model.snap_catalogue.add(new, progress_callback=task.update_task_progress, message_callback=task.update_task_message)
+                        new = self.dash_model.snap_catalogue.create_snapshot(
+                            snap_id=raw_data["id"],
+                            name=raw_data["name"],
+                            desc=raw_data["desc"],
+                            author=get_system_username(),
+                            tags=raw_data["tags"],
+                            directory_paths=raw_data["directories"],
+                            data=raw_data["custom_data"],
+                            progress_callback=task.update_task_progress,
+                            message_callback=task.update_task_message,
+                        )
                         log_action(ActionCategory.CATALOGUE, ActionType.CATALOGUE_SNAPSHOT_CREATED, new.name)
                         
                     titolo = tr("Configuration created")

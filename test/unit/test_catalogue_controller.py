@@ -1,6 +1,7 @@
 import sys
 import types
 from pathlib import Path
+from unittest.mock import Mock
 
 def test_catalogue_controller(monkeypatch):
     # Mock i18n
@@ -34,9 +35,18 @@ def test_catalogue_controller(monkeypatch):
     dl_mod = types.ModuleType("snappy.view.catalogue_imp_dialog")
     class FakeSnapshot:
         def __init__(self, id, name): self.id = id; self.name = name; self.directories = []
+    form_data = {
+        "id": "d1",
+        "name": "D1",
+        "desc": "Description",
+        "tags": ["test"],
+        "custom_data": {"visible": "value"},
+        "directories": ["/source/one"],
+        "directories_changed": False,
+    }
     class FakeDialogConfig:
         res = True
-        def __init__(self, d, e, s): self.output_data = FakeSnapshot("d1", "D1")
+        def __init__(self, d, e, s): self.output_data = form_data
         def exec(self): return self.res
     dl_mod.DialogConfig = FakeDialogConfig
     monkeypatch.setitem(sys.modules, "snappy.view.catalogue_imp_dialog", dl_mod)
@@ -99,7 +109,6 @@ def test_catalogue_controller(monkeypatch):
     class FakeModel:
         def __init__(self): self.table_model = FakeTM()
         def set_snapshots(self, l): pass
-        def build_snapshot_from_raw(self, raw, old_id=None): return FakeSnapshot("d1", "D1")
     model_mod.CatalogueModel = FakeModel
     monkeypatch.setitem(sys.modules, "snappy.model.catalogue", model_mod)
     
@@ -108,9 +117,13 @@ def test_catalogue_controller(monkeypatch):
     class FakeTask:
         def update_task_progress(self, p): pass
         def update_task_message(self, m): pass
+    task = FakeTask()
     class FakeCat:
-        def update_snapshot_by_objs(self, o, n, progress_callback=None, message_callback=None): pass
-        def add(self, o, progress_callback, message_callback=None): progress_callback(10)
+        def __init__(self):
+            self.create_snapshot = Mock(return_value=FakeSnapshot("d1", "D1"))
+            self.update_snapshot_with_result = Mock(return_value=types.SimpleNamespace(
+                snapshot=FakeSnapshot("s1", "Edited"), backup_path=Path("/backups/edit.zip"),
+            ))
         def remove_installed_copies(self, id, message_callback=None): pass
         def install(self, s, clear_destination=True, progress_callback=None, message_callback=None): progress_callback(10) if progress_callback else None
         def delete(self, s, progress_callback=None, message_callback=None): pass
@@ -124,17 +137,19 @@ def test_catalogue_controller(monkeypatch):
             self.cached_data = None
             self.snap_catalogue = FakeCat()
         def run_heavy_operation(self, n, d, func, success_msg_title="", success_msg="", update_dashboard=True):
-            func(FakeTask())
+            func(task)
     dash_mod.DashboardModel = FakeDash
     monkeypatch.setitem(sys.modules, "snappy.model.dashboard", dash_mod)
 
     sys.modules.pop("snappy.controller.catalogue", None)
-    from snappy.controller.catalogue import CatalogueController
+    import snappy.controller.catalogue as catalogue_module
     from snappy.domain.data import SnappySnapshotData
+    monkeypatch.setattr(catalogue_module, "get_system_username", lambda: "Author")
     
     search_page_calls = []
-    ctrl = CatalogueController(FakeDash(), lambda s: search_page_calls.append(s))
+    ctrl = catalogue_module.CatalogueController(FakeDash(), lambda s: search_page_calls.append(s))
     ctrl.init()
+    catalogue = ctrl.dash_model.snap_catalogue
     
     ctrl.update_data(SnappySnapshotData([]))
     
@@ -143,11 +158,24 @@ def test_catalogue_controller(monkeypatch):
     from snappy.model.history import ActionType
     # __open_config_dialog (edit_mode=False) -> signal_import_requested
     ctrl.view.signal_import_requested.emit()
+    catalogue.create_snapshot.assert_called_once_with(
+        snap_id="d1", name="D1", desc="Description", author="Author", tags=["test"],
+        directory_paths=["/source/one"], data={"visible": "value"},
+        progress_callback=task.update_task_progress, message_callback=task.update_task_message,
+    )
     assert actions[-1][1] == ActionType.CATALOGUE_SNAPSHOT_CREATED
     
     # __open_config_dialog (edit_mode=True) -> signal_edit_requested
     ctrl.view.signal_edit_requested.emit(snap)
-    assert actions[-1][1] == ActionType.CATALOGUE_SNAPSHOT_UPDATED
+    catalogue.update_snapshot_with_result.assert_called_once_with(
+        "s1", name="D1", desc="Description", tags=["test"], directory_paths=None,
+        data_updates={"visible": "value"}, message_callback=task.update_task_message,
+    )
+    assert actions[-1][1:] == (ActionType.CATALOGUE_SNAPSHOT_UPDATED, "Edited")
+
+    form_data["directories_changed"] = True
+    ctrl.view.signal_edit_requested.emit(snap)
+    assert catalogue.update_snapshot_with_result.call_args.kwargs["directory_paths"] == ["/source/one"]
     
     # __install_snapshot
     ctrl.view.signal_install_requested.emit(snap)
