@@ -9,7 +9,7 @@ authors = [
 dependencies = [
     "loguru>=0.7.3",
     "loguru-logging-intercept>=0.1.5",
-    "pylizlib>=1.0.0",
+    "pylizlib>=1.0.1",
     "pyside6>=6.11.0",
     "pyside6-fluent-widgets[full]>=1.11.2",
 ]
@@ -25,7 +25,7 @@ include = ["snappy*"]
 
 [project.optional-dependencies]
 qtfw = [
-    "pylizlib[qtfw]>=1.0.0",
+    "pylizlib[qtfw]>=1.0.1",
 ]
 
 [dependency-groups]
