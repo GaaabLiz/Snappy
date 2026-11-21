@@ -152,8 +152,10 @@ def _import_dashboard_module(monkeypatch):
         backup_before_delete = "backup_before_delete"
 
     class FakeSnappySnapshotData:
-        def __init__(self, snapshot_list):
+        def __init__(self, snapshot_list, home_statistics=None, backup_count=None):
             self.snapshot_list = snapshot_list
+            self.home_statistics = home_statistics
+            self.backup_count = backup_count
 
     class FakeSnappyData:
         def __init__(self, snapshots=None):
@@ -320,13 +322,16 @@ def test_handle_data_updated_updates_children_and_catalogue_path(monkeypatch):
     if hasattr(controller, "view") and "qtbot" in locals() and hasattr(qtbot, "addWidget"):
         qtbot.addWidget(controller.view)
 
-    data = types.SimpleNamespace(snapshots=["s1", "s2", "s3"])
+    data = types.SimpleNamespace(snapshots=["s1", "s2", "s3"], home_statistics=object(), backup_count=2)
     controller._DashboardController__handle_data_updated(data)
 
     assert controller.cached_data is data
     assert len(controller.catalogue.update_data_calls) == 1
     assert len(controller.home.update_data_calls) == 1
     assert controller.catalogue.update_data_calls[0].snapshot_list == ["s1", "s2", "s3"]
+    assert controller.catalogue.update_data_calls[0] is controller.home.update_data_calls[0]
+    assert controller.home.update_data_calls[0].home_statistics is data.home_statistics
+    assert controller.home.update_data_calls[0].backup_count == 2
     assert controller.searcher.open_calls[-1] is None
     assert controller.history.reload_count == 1
     assert controller.backup.update_data_calls == 1

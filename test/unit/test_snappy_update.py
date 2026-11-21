@@ -1,6 +1,9 @@
 import sys
 import types
 from pathlib import Path
+from unittest.mock import Mock
+
+from pylizlib.core.os.snap import BackupType, Snapshot, SnapshotCatalogueStatistics
 
 
 def _import_snappy_update_module(monkeypatch, starred_exes=None):
@@ -51,7 +54,10 @@ def _import_snappy_update_module(monkeypatch, starred_exes=None):
         APPLICATION = "APPLICATION"
 
     fake_snap_module = types.ModuleType("pylizlib.core.os.snap")
+    fake_snap_module.BackupType = BackupType
+    fake_snap_module.Snapshot = Snapshot
     fake_snap_module.SnapshotCatalogue = object
+    fake_snap_module.SnapshotCatalogueStatistics = SnapshotCatalogueStatistics
 
     fake_commands_module = types.ModuleType("pylizlib.core.os.commands")
     fake_commands_module.is_software_installed = fake_is_software_installed
@@ -134,23 +140,46 @@ def test_task_get_monitored_software_empty_list(monkeypatch):
     assert call_log["version"] == []
 
 
-def test_task_get_snapshots_execute_delegates_to_catalogue(monkeypatch):
+def test_task_get_snapshots_execute_delegates_to_catalogue(monkeypatch, tmp_path):
     module, _call_log = _import_snappy_update_module(monkeypatch)
-
-    class FakeCatalogue:
-        def __init__(self):
-            self.calls = 0
-
-        def get_all(self):
-            self.calls += 1
-            return ["s1", "s2"]
-
-    catalogue = FakeCatalogue()
+    statistics = object()
+    catalogue = Mock()
+    catalogue.settings.backup_path = tmp_path
+    catalogue.get_all.return_value = ["s1", "s2"]
+    catalogue.get_statistics.return_value = statistics
+    catalogue.list_backups.return_value = [
+        types.SimpleNamespace(is_export=False, backup_type=BackupType.SNAPSHOT_DIRECTORY, created_at=object(), snapshot_id="s1"),
+        types.SimpleNamespace(is_export=False, backup_type=BackupType.ASSOCIATED_DIRECTORIES, created_at=object(), snapshot_id="s2"),
+        types.SimpleNamespace(is_export=True, backup_type=BackupType.SNAPSHOT_DIRECTORY, created_at=object(), snapshot_id="s2"),
+        types.SimpleNamespace(is_export=False, backup_type=None, created_at=None, snapshot_id=None),
+        types.SimpleNamespace(is_export=False, backup_type=BackupType.ASSOCIATED_DIRECTORIES, created_at=None, snapshot_id="s2"),
+        types.SimpleNamespace(is_export=False, backup_type=BackupType.ASSOCIATED_DIRECTORIES, created_at=object(), snapshot_id=None),
+    ]
     task = module.TaskGetSnapshots(catalogue)
 
     assert task.name == "TR:Retrieving saved snapshots"
-    result = task.execute()
+    assert task.execute() == ["s1", "s2"]
+    catalogue.get_all.assert_called_once_with()
+    catalogue.get_statistics.assert_called_once_with(include_backups=False)
+    catalogue.list_backups.assert_called_once_with(tmp_path)
+    assert task.home_statistics is statistics
+    assert task.backup_count == 2
 
-    assert result == ["s1", "s2"]
-    assert catalogue.calls == 1
+    catalogue.get_statistics.side_effect = OSError("Cannot read statistics")
+    assert task.execute() == ["s1", "s2"]
+    assert task.home_statistics is None
+    assert task.backup_count == 2
+
+    catalogue.get_statistics.side_effect = None
+    catalogue.list_backups.side_effect = OSError("Cannot list backups")
+    assert task.execute() == ["s1", "s2"]
+    assert task.home_statistics is statistics
+    assert task.backup_count is None
+
+    catalogue.list_backups.reset_mock()
+    for backup_path in (None, tmp_path / "missing"):
+        catalogue.settings.backup_path = backup_path
+        task.execute()
+        assert task.backup_count == 0
+    catalogue.list_backups.assert_not_called()
 

@@ -111,7 +111,7 @@ def test_catalogue_controller(monkeypatch):
         def update_headers(self): pass
     class FakeModel:
         def __init__(self): self.table_model = FakeTM()
-        def set_snapshots(self, l): pass
+        def set_snapshots(self, snapshots, statistics): pass
     model_mod.CatalogueModel = FakeModel
     monkeypatch.setitem(sys.modules, "snappy.model.catalogue", model_mod)
     

@@ -1,13 +1,14 @@
-from pathlib import Path
+from pathlib import PurePosixPath
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QVBoxLayout, QHBoxLayout, QGridLayout, QWidget
+from pylizlib.core.data.unit import get_normalized_gb_mb_str
+from pylizlib.core.os.snap import SnapshotCatalogueStatistics
 from qfluentwidgets import (
     ElevatedCardWidget, CaptionLabel, TitleLabel,
     setFont, FluentIcon, IconWidget, SingleDirectionScrollArea, ToolTipFilter
 )
 
-from snappy.domain.data import HomeStatistics
 from snappy.view.util.frame import SnappyQFrame
 from snappy.application.i18n import tr
 
@@ -169,40 +170,41 @@ class HomeView(SnappyQFrame):
 
         self.master_layout.addWidget(scroll_area, 1)
 
-    def update_statistics(self, stats: HomeStatistics, backup_count: int | None = 0, catalogue_path: str = ""):
+    def update_statistics(self, stats: SnapshotCatalogueStatistics | None, backup_count: int | None = None, catalogue_path: str = ""):
         """
         Updates the values displayed on all the stat cards in the home view.
 
         Args:
-            stats (HomeStatistics): The statistics data object containing counts and sizes.
+            stats (SnapshotCatalogueStatistics | None): Counts and sizes, or None when unavailable.
             backup_count (int | None, optional): The current number of managed backups, or None when unavailable.
             catalogue_path (str, optional): The path to the current catalogue. Defaults to "".
         """
-        self.card_snap_count.update_value(str(stats.snapshot_count))
-        self.card_total_size.update_value(stats.total_size_str)
-        if stats.file_statistics_available:
-            self.card_total_files.update_value(f"{stats.total_files:,}".replace(",", "."))
-            self.card_total_dirs.update_value(f"{stats.total_dirs:,}".replace(",", "."))
-        else:
-            self.card_total_files.update_value("—")
-            self.card_total_dirs.update_value("—")
         if backup_count is None:
             self.card_backup_count.update_value("—", subtitle=tr("Unavailable"))
         else:
             self.card_backup_count.update_value(str(backup_count))
         self.card_catalogue_path.update_value(catalogue_path)
-        self.card_last_snap_date.update_value(stats.last_snapshot_date)
-        self.card_oldest_snap_date.update_value(stats.oldest_snapshot_date)
-        self.card_avg_size.update_value(stats.average_snapshot_size_str)
 
-        if not stats.file_statistics_available:
+        if stats is None:
+            for card in (self.card_snap_count, self.card_total_size, self.card_total_files, self.card_total_dirs,
+                         self.card_last_snap_date, self.card_oldest_snap_date, self.card_avg_size):
+                card.update_value("—")
             self.card_heaviest_file.update_value("—", subtitle=tr("Unavailable"))
-        elif stats.heaviest_file_path:
-            name = Path(stats.heaviest_file_path).name
-            self.card_heaviest_file.update_value(
-                stats.heaviest_file_size_str,
-                subtitle=name
-            )
-        else:
+            return
+
+        self.card_snap_count.update_value(str(stats.snapshot_count))
+        self.card_total_size.update_value(get_normalized_gb_mb_str(stats.total_size_bytes))
+        self.card_total_files.update_value(f"{stats.file_count:,}".replace(",", "."))
+        self.card_total_dirs.update_value(f"{stats.directory_count:,}".replace(",", "."))
+        self.card_last_snap_date.update_value(stats.newest_snapshot_date.strftime("%Y-%m-%d") if stats.newest_snapshot_date else "—")
+        self.card_oldest_snap_date.update_value(stats.oldest_snapshot_date.strftime("%Y-%m-%d") if stats.oldest_snapshot_date else "—")
+        self.card_avg_size.update_value(get_normalized_gb_mb_str(stats.average_snapshot_size_bytes))
+
+        if stats.largest_file is None:
             self.card_heaviest_file.update_value("—", subtitle=tr("No file found"))
+        else:
+            self.card_heaviest_file.update_value(
+                get_normalized_gb_mb_str(stats.largest_file.size_bytes),
+                subtitle=PurePosixPath(stats.largest_file.relative_path).name,
+            )
 

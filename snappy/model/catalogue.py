@@ -1,9 +1,9 @@
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
-from pylizlib.core.os.snap import Snapshot, SnapshotSortKey
+from pylizlib.core.data.unit import get_normalized_gb_mb_str
+from pylizlib.core.os.snap import Snapshot, SnapshotCatalogueStatistics, SnapshotSortKey
 from pylizlib.core.os.snap.sorting import sort_snapshots
 
 from snappy.application.app import app_settings, AppSettings
-from snappy.domain.data import SnappySnapshotData
 from snappy.application.i18n import tr
 
 
@@ -163,15 +163,18 @@ class CatalogueModel:
         self._filter_text = ""
         self._sort_key = SnapshotSortKey.NAME
         self._sort_reverse = False
+        self._statistics: SnapshotCatalogueStatistics | None = None
         self.table_model = SnapshotTableModel()
 
-    def set_snapshots(self, snapshots: list[Snapshot]):
+    def set_snapshots(self, snapshots: list[Snapshot] | None, statistics: SnapshotCatalogueStatistics | None = None):
         """
         Sets the master list of snapshots and updates the table view.
 
         Args:
-            snapshots (list[Snapshot]): The list of snapshots to manage.
+            snapshots (list[Snapshot] | None): The snapshots to manage, or None to clear the list.
+            statistics (SnapshotCatalogueStatistics | None): Totals for the whole catalogue.
         """
+        self._statistics = statistics
         self._all_snapshots = snapshots if snapshots is not None else []
         self._all_snapshots = sort_snapshots(
             self._all_snapshots, self._sort_key, reverse=self._sort_reverse
@@ -228,19 +231,13 @@ class CatalogueModel:
             self.table_model.set_snapshots(self._filtered_snapshots)
 
     def count(self) -> int:
-        """
-        Returns the count of snapshots in the current view (filtered or not).
-
-        Returns:
-            int: The number of snapshots currently in the view.
-        """
+        """Return the total number of snapshots in the catalogue."""
+        if self._statistics is not None:
+            return self._statistics.snapshot_count
         return len(self._all_snapshots)
 
     def get_mb_size(self) -> str:
-        """
-        Returns the total size of all snapshots in MB.
-
-        Returns:
-            str: The total size formatted as a string.
-        """
-        return SnappySnapshotData(snapshot_list=self._all_snapshots).get_mb_size
+        """Format the total captured size of the catalogue when available."""
+        if self._statistics is None:
+            return "—"
+        return get_normalized_gb_mb_str(self._statistics.total_size_bytes)

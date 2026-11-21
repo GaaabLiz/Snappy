@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from loguru import logger
-from pylizlib.core.os.snap import SnapshotCatalogue
+from pylizlib.core.os.snap import BackupType, Snapshot, SnapshotCatalogue, SnapshotCatalogueStatistics
 from pylizlib.core.os.commands import is_software_installed
 from pylizlib.core.os.windows.processes import WindowsOsUtils
 from pylizlib.qt.handler.operation_core import Task
@@ -71,9 +71,10 @@ class TaskGetSnapshots(Task):
         """
         super().__init__(tr("Retrieving saved snapshots"))
         self.catalogue = catalogue
-        self.home_statistics = None
+        self.home_statistics: SnapshotCatalogueStatistics | None = None
+        self.backup_count: int | None = None
 
-    def execute(self):
+    def execute(self) -> list[Snapshot]:
         """
         Executes the task to fetch all snapshots.
 
@@ -81,11 +82,34 @@ class TaskGetSnapshots(Task):
             list[Snapshot]: A list of all available snapshots in the catalogue.
         """
         logger.debug("Fetching saved snapshots...")
+        self.home_statistics = None
+        self.backup_count = None
         snapshots = self.catalogue.get_all()
-        catalogue_path = getattr(self.catalogue, "path_catalogue", None)
-        if catalogue_path is not None:
-            from snappy.domain.data import SnappySnapshotData
+        try:
+            self.home_statistics = self.catalogue.get_statistics(include_backups=False)
+        except Exception as error:
+            logger.warning(f"Cannot calculate catalogue statistics: {error}")
 
-            snapshot_data = SnappySnapshotData(snapshot_list=snapshots)
-            self.home_statistics = snapshot_data.compute_home_statistics(catalogue_path)
+        self.backup_count = self._count_managed_backups()
         return snapshots
+
+    def _count_managed_backups(self) -> int | None:
+        """Count the automatic backups shown by the Home card."""
+        backup_path = self.catalogue.settings.backup_path
+        if backup_path is None:
+            return 0
+        try:
+            backup_path.stat()
+            return sum(
+                1
+                for backup in self.catalogue.list_backups(backup_path)
+                if not backup.is_export
+                and backup.backup_type in (BackupType.ASSOCIATED_DIRECTORIES, BackupType.SNAPSHOT_DIRECTORY)
+                and backup.created_at is not None
+                and bool(backup.snapshot_id)
+            )
+        except FileNotFoundError:
+            return 0
+        except Exception as error:
+            logger.warning(f"Cannot count managed backups in '{backup_path}': {error}")
+            return None

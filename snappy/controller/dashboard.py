@@ -43,8 +43,6 @@ class DashboardController:
         self.model = DashboardModel()
 
         self.home = HomeController()
-        if hasattr(self.home, "set_catalogue"):
-            self.home.set_catalogue(self.model.snap_catalogue)
         self.searcher = CatalogueSearcherController(self.model.snap_catalogue, self.view, self.model)
         self.history = ActionHistoryController()
         self.backup = BackupController(self.model)
@@ -77,8 +75,11 @@ class DashboardController:
         """
         logger.debug("Updated dashboard data received in controller. Updating view...")
         logger.debug(data)
-        snap_data = SnappySnapshotData(snapshot_list=data.snapshots)
-        snap_data.home_statistics = getattr(data, "home_statistics", None)
+        snap_data = SnappySnapshotData(
+            snapshot_list=data.snapshots,
+            home_statistics=data.home_statistics,
+            backup_count=data.backup_count,
+        )
         self.cached_data = data
         self.catalogue.update_data(snap_data)
         self.home.update_data(snap_data)

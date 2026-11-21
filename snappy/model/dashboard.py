@@ -245,8 +245,9 @@ class DashboardModel(QObject):
             data = SnappyData(
                 snapshots=snapshots,
                 monitored_software=[],
+                home_statistics=self.task_snap.home_statistics,
+                backup_count=self.task_snap.backup_count,
             )
-            data.home_statistics = getattr(self.task_snap, "home_statistics", None)
             self.signal_on_updated_data_available.emit(data)
             self.cached_data = data
         except Exception as error:

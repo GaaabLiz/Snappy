@@ -1,75 +1,74 @@
-import shutil
-import sys
-import types
+from datetime import datetime
+from types import SimpleNamespace
 
-from pylizlib.core.os.snap import BackupType
+from pylizlib.core.os.snap import SnapshotCatalogueStatistics, SnapshotFileInfo
 
-def test_home_controller(monkeypatch, tmp_path):
-    # Mock view
-    view_mod = types.ModuleType("snappy.view.home")
-    updated = []
-    class FakeHomeView:
-        def update_statistics(self, stats, backup_count, catalogue_path):
-            updated.append((stats, backup_count, catalogue_path))
-    view_mod.HomeView = FakeHomeView
-    monkeypatch.setitem(sys.modules, "snappy.view.home", view_mod)
-    
-    # Mock app_settings
-    app_mod = types.ModuleType("snappy.application.app")
-    class ASK: backup_path="b"; catalogue_path="c"
-    
-    # create fake backup path with 2 zips
-    b_path = tmp_path / "backups"
-    b_path.mkdir()
-    (b_path / "1.zip").touch()
-    (b_path / "2.zip").touch()
-    (b_path / "3.txt").touch()
-    
-    class AS:
-        def get(self, k):
-            if k == "b": return str(b_path)
-            if k == "c": return "/cat"
-    app_mod.AppSettings = ASK
-    app_mod.app_settings = AS()
-    app_mod.PATH_BACKUPS = "/backups"
-    monkeypatch.setitem(sys.modules, "snappy.application.app", app_mod)
+from snappy.controller.home import HomeController
+from snappy.domain.data import SnappySnapshotData
 
-    class FakeCatalogue:
-        def list_backups(self, _backup_path):
-            return [
-                types.SimpleNamespace(
-                    is_export=False,
-                    backup_type=BackupType.SNAPSHOT_DIRECTORY,
-                    created_at=object(),
-                    snapshot_id="snapshot-1",
-                ),
-                types.SimpleNamespace(
-                    is_export=False,
-                    backup_type=BackupType.ASSOCIATED_DIRECTORIES,
-                    created_at=object(),
-                    snapshot_id="snapshot-2",
-                ),
-            ]
-    
-    sys.modules.pop("snappy.controller.home", None)
-    from snappy.controller.home import HomeController
-    
-    ctrl = HomeController()
-    ctrl.set_catalogue(FakeCatalogue())
-    
-    class FakeStats: pass
-    class FakeSnapData:
-        def compute_home_statistics(self): return FakeStats
-        
-    ctrl.update_data(FakeSnapData())
-    
-    assert len(updated) == 1
-    assert updated[0][0] == FakeStats
-    assert updated[0][1] == 2
-    assert updated[0][2] == "/cat"
-    
-    # test backup_path not exists
-    shutil.rmtree(b_path)
-    ctrl.update_data(FakeSnapData())
-    assert updated[-1][1] == 0
+
+def test_home_displays_catalogue_statistics(qtbot, tmp_path):
+    controller = HomeController()
+    view = controller.view
+    qtbot.addWidget(view)
+    catalogue_path = tmp_path / "catalogue"
+    stats = SnapshotCatalogueStatistics(
+        catalogue_path=catalogue_path,
+        snapshot_count=2,
+        total_size_bytes=6 * 1024 * 1024,
+        file_count=1234,
+        directory_count=24,
+        largest_file=SnapshotFileInfo("s1", "folder", "nested/large.dat", 4 * 1024 * 1024),
+        oldest_snapshot_date=datetime(2026, 1, 2),
+        newest_snapshot_date=datetime(2026, 2, 3),
+        backup_count=None,
+    )
+
+    controller.update_data(SnappySnapshotData([], home_statistics=stats, backup_count=3))
+
+    assert view.card_snap_count.valueLabel.text() == "2"
+    assert view.card_total_size.valueLabel.text() == "6.00 MB"
+    assert view.card_avg_size.valueLabel.text() == "3.00 MB"
+    assert view.card_total_files.valueLabel.text() == "1.234"
+    assert view.card_total_dirs.valueLabel.text() == "24"
+    assert view.card_heaviest_file.valueLabel.text() == "4.00 MB"
+    assert view.card_heaviest_file.subtitleLabel.text() == "large.dat"
+    assert view.card_oldest_snap_date.valueLabel.text() == "2026-01-02"
+    assert view.card_last_snap_date.valueLabel.text() == "2026-02-03"
+    assert view.card_backup_count.valueLabel.text() == "3"
+    assert view.card_catalogue_path.valueLabel.text() == str(catalogue_path)
+
+
+def test_home_distinguishes_empty_and_unavailable_statistics(qtbot, monkeypatch, tmp_path):
+    controller = HomeController()
+    view = controller.view
+    qtbot.addWidget(view)
+    catalogue_path = tmp_path / "catalogue"
+    stats = SnapshotCatalogueStatistics(
+        catalogue_path=catalogue_path,
+        snapshot_count=0,
+        total_size_bytes=0,
+        file_count=0,
+        directory_count=0,
+        largest_file=None,
+        oldest_snapshot_date=None,
+        newest_snapshot_date=None,
+        backup_count=None,
+    )
+
+    controller.update_data(SnappySnapshotData([], home_statistics=stats, backup_count=0))
+    assert view.card_total_files.valueLabel.text() == "0"
+    assert view.card_snap_count.valueLabel.text() == "0"
+    assert view.card_heaviest_file.valueLabel.text() == "—"
+    assert view.card_last_snap_date.valueLabel.text() == "—"
+    assert view.card_backup_count.valueLabel.text() == "0"
+
+    monkeypatch.setattr("snappy.model.home.app_settings", SimpleNamespace(get=lambda _: str(catalogue_path)))
+    controller.update_data(SnappySnapshotData([]))
+
+    assert view.card_total_files.valueLabel.text() == "—"
+    assert view.card_snap_count.valueLabel.text() == "—"
+    assert view.card_total_size.valueLabel.text() == "—"
+    assert view.card_backup_count.valueLabel.text() == "—"
+    assert view.card_catalogue_path.valueLabel.text() == str(catalogue_path)
 

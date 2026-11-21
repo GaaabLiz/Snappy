@@ -88,11 +88,15 @@ def _import_dashboard_model_module(monkeypatch):
         def __init__(self, catalogue):
             super().__init__("snapshots")
             self.catalogue = catalogue
+            self.home_statistics = None
+            self.backup_count = None
 
     class FakeSnappyData:
-        def __init__(self, snapshots=None, monitored_software=None):
+        def __init__(self, snapshots=None, monitored_software=None, home_statistics=None, backup_count=None):
             self.snapshots = snapshots
             self.monitored_software = monitored_software
+            self.home_statistics = home_statistics
+            self.backup_count = backup_count
 
     fake_qtcore = types.ModuleType("PySide6.QtCore")
     fake_qtcore.QObject = FakeQObject
@@ -191,7 +195,7 @@ def test_update_builds_operation_and_starts_runner(monkeypatch):
     assert model.runner.start_count == 1
 
     operation = model.runner.added_ops[0]
-    assert operation.tasks == [model.task_monitored_soft, model.task_snap]
+    assert operation.tasks == [model.task_snap]
     assert operation.operation_info is model.operation_info
 
 
@@ -211,8 +215,10 @@ def test_on_runner_finished_success_emits_data_and_caches(monkeypatch):
     model = dashboard_model_module.DashboardModel()
 
     fake_operation = types.SimpleNamespace(
-        get_task_result_by_id=lambda task_id: ["s1"] if task_id == model.task_snap.id else ["soft1"]
+        get_task_result_by_id={model.task_snap.id: ["s1"]}.__getitem__
     )
+    model.task_snap.home_statistics = object()
+    model.task_snap.backup_count = 2
     stats = dashboard_model_module.RunnerStatistics(operations=[fake_operation], failed=False)
 
     received = []
@@ -227,7 +233,9 @@ def test_on_runner_finished_success_emits_data_and_caches(monkeypatch):
 
     assert len(received) == 1
     assert received[0].snapshots == ["s1"]
-    assert received[0].monitored_software == ["soft1"]
+    assert received[0].monitored_software == []
+    assert received[0].home_statistics is model.task_snap.home_statistics
+    assert received[0].backup_count == 2
     assert model.get_cached_data() is received[0]
 
 
@@ -430,6 +438,11 @@ def test_heavy_operation_blocks_refresh_and_recovers_from_launch_error(monkeypat
     assert not model.update()
     assert not model.run_heavy_operation("delete", "Deleting", lambda: None)
     model._heavy_runners[0].runner_finish.emit(module.RunnerStatistics(failed=True))
+    assert model.operation_active
+    assert model.runner.start_count == 1
+    refresh = model.runner.added_ops[0]
+    refresh._results[model.task_snap.id] = []
+    model.runner.runner_finish.emit(module.RunnerStatistics(operations=[refresh]))
     assert not model.operation_active
 
     def fail_start():

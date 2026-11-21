@@ -24,18 +24,6 @@ class HomeController:
         # MVC: Connect model signals to view slots
         self.model.statistics_updated.connect(self.view.update_statistics)
 
-    def set_catalogue(self, catalogue):
-        """Provide the shared catalogue used to classify managed backups."""
-        self.model.catalogue = catalogue
-
     def update_data(self, snapshot_data: SnappySnapshotData):
-        """
-        Updates the data presented on the home view by commanding the model
-        to re-compute statistics based on the latest snapshot data.
-
-        Args:
-            snapshot_data (SnappySnapshotData): The current snapshot data used to compute statistics.
-        """
-        # Tell the model to compute new data. 
-        # When it finishes, it will emit 'statistics_updated' triggering the view automatically.
-        self.model.compute_and_emit_statistics(snapshot_data)
+        """Publish the statistics loaded by the latest dashboard refresh."""
+        self.model.emit_statistics(snapshot_data)

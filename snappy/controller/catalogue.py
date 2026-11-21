@@ -72,7 +72,7 @@ class CatalogueController:
         Args:
             snapshot_data (SnappySnapshotData): The new snapshot data to display.
         """
-        self.model.set_snapshots(snapshot_data.snapshot_list)
+        self.model.set_snapshots(snapshot_data.snapshot_list, snapshot_data.home_statistics)
         self.model.table_model.update_headers()
         self.view.reload_data()
 

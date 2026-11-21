@@ -1,9 +1,10 @@
 import sys
 import types
 from datetime import datetime
+from pathlib import Path
 
 from PySide6.QtCore import Qt
-from pylizlib.core.os.snap import Snapshot, SnapshotSortKey
+from pylizlib.core.os.snap import Snapshot, SnapshotCatalogueStatistics, SnapshotSortKey
 
 def _import_catalogue_module(monkeypatch):
     # Mock app_settings
@@ -19,22 +20,11 @@ def _import_catalogue_module(monkeypatch):
     app_module.app_settings = FakeAppSettings()
     app_module.AppSettings = FakeAppSettingsKeys
     
-    # Mock SnappySnapshotData
-    data_module = types.ModuleType("snappy.domain.data")
-    class FakeSnappySnapshotData:
-        def __init__(self, snapshot_list):
-            self.snapshot_list = snapshot_list
-        @property
-        def get_mb_size(self):
-            return f"{len(self.snapshot_list)}MB"
-    data_module.SnappySnapshotData = FakeSnappySnapshotData
-    
     # Mock i18n
     i18n_module = types.ModuleType("snappy.application.i18n")
     i18n_module.tr = lambda x: x
     
     monkeypatch.setitem(sys.modules, "snappy.application.app", app_module)
-    monkeypatch.setitem(sys.modules, "snappy.domain.data", data_module)
     monkeypatch.setitem(sys.modules, "snappy.application.i18n", i18n_module)
     
     sys.modules.pop("snappy.model.catalogue", None)
@@ -112,13 +102,24 @@ def test_catalogue_model(monkeypatch):
     snap1 = Snapshot(id="1", name="Snap1", desc="Desc 1", date_created=datetime(2023, 1, 1), tags=["foo"], data={}, directories=[])
     snap2 = Snapshot(id="2", name="Snap2", desc="Desc 2", date_created=datetime(2023, 1, 2), tags=["bar"], data={"Author": "Test"}, directories=[])
     
-    cat_model.set_snapshots([snap1, snap2])
+    stats = SnapshotCatalogueStatistics(
+        catalogue_path=Path("/catalogue"), snapshot_count=2, total_size_bytes=2 * 1024 * 1024,
+        file_count=1, directory_count=1, largest_file=None, oldest_snapshot_date=snap1.date_created,
+        newest_snapshot_date=snap2.date_created, backup_count=None,
+    )
+    cat_model.set_snapshots([snap1, snap2], stats)
     assert cat_model.count() == 2
-    assert cat_model.get_mb_size() == "2MB"
+    assert cat_model.get_mb_size() == "2.00 MB"
     assert cat_model.get_snapshot_at(0) == snap1
+
+    cat_model.filter("snap1")
+    assert cat_model.table_model.rowCount() == 1
+    assert cat_model.count() == 2
+    assert cat_model.get_mb_size() == "2.00 MB"
     
     cat_model.set_snapshots(None)
     assert cat_model.count() == 0
+    assert cat_model.get_mb_size() == "—"
 
 def test_catalogue_model_sort(monkeypatch):
     catalogue_module = _import_catalogue_module(monkeypatch)
