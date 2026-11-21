@@ -125,7 +125,7 @@ class HelpModel(QObject):
                    "• Target Content vs. Target Names: Choose whether the search engine should look inside the actual text content of the files, or if it should only match against file and folder names.\n"
                    "• Plain Text & Regex: Perform standard literal searches, or toggle Regular Expressions (Regex) for advanced pattern matching.\n"
                    "• Extension Filters: Drastically speed up your searches and reduce noise by limiting the scan to specific file types (e.g., `.py`, `.json`, `.txt`).\n\n"
-                   "The results pane provides rich context, showing you the exact file path and highlighting the matching text snippet. You can double-click a result to inspect it further."),
+                   "The results pane provides rich context, showing the file path, matching line numbers and text previews. You can double-click a result to inspect it further."),
             ),
             "settings": (
                 tr("Settings screen"),
