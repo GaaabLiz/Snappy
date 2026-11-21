@@ -5,7 +5,7 @@ from PySide6.QtWidgets import QFileDialog, QInputDialog
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtCore import QUrl
 from loguru import logger
-from pylizlib.core.os.snap import Snapshot
+from pylizlib.core.os.snap import Snapshot, SnapshotUpdateResult
 from pylizlib.core.os.snap.storage.coordination import catalogue_access
 from pylizlib.core.os.snap.storage.install_registry import InstalledCopyRegistry
 from pylizlib.core.os.system import get_system_username
@@ -88,6 +88,39 @@ class CatalogueController:
                 f"snapshot={snap.name}; before={operation}; archive={backup_path.name}",
             )
 
+    def __save_snapshot_changes(self, original: Snapshot, form: dict, message_callback) -> SnapshotUpdateResult:
+        """Apply the edited fields after checking them against the form's original values."""
+        catalogue = self.dash_model.snap_catalogue
+        fields = {key: form[key] for key in ("name", "desc") if form[key] != getattr(original, key)}
+        tags = form["tags"] if set(form["tags"]) != set(original.tags) else None
+        custom = {
+            key: value for key, value in form["custom_data"].items()
+            if value != original.data.get(key, "")
+        }
+        directories = form["directories"] if form["directories_changed"] else None
+        conflict = tr("This snapshot changed in another instance. Reopen it and try again.")
+
+        with catalogue_access(catalogue.path_catalogue):
+            current = catalogue.get_by_id(original.id)
+            if current is None or current.date_created != original.date_created:
+                raise ValueError(conflict)
+            if any(getattr(current, key) not in (getattr(original, key), value) for key, value in fields.items()):
+                raise ValueError(conflict)
+            if tags is not None and set(current.tags) not in (set(original.tags), set(tags)):
+                raise ValueError(conflict)
+            if any(current.data.get(key) not in (original.data.get(key), value) for key, value in custom.items()):
+                raise ValueError(conflict)
+            if directories is not None:
+                previous_paths = [(item.folder_id, item.original_path) for item in original.directories]
+                current_paths = [(item.folder_id, item.original_path) for item in current.directories]
+                if current_paths != previous_paths:
+                    raise ValueError(conflict)
+
+            return catalogue.update_snapshot_with_result(
+                original.id, **fields, tags=tags, directory_paths=directories,
+                data_updates=custom or None, message_callback=message_callback,
+            )
+
     def __open_config_dialog(self, edit_mode: bool, snap: Snapshot | None = None):
         """
         Opens a dialog for creating or editing a snapshot configuration.
@@ -110,15 +143,7 @@ class CatalogueController:
                     op_desc = tr("Modifying configuration")
                     
                     def action(task):
-                        result = self.dash_model.snap_catalogue.update_snapshot_with_result(
-                            snap.id,
-                            name=raw_data["name"],
-                            desc=raw_data["desc"],
-                            tags=raw_data["tags"],
-                            directory_paths=raw_data["directories"] if raw_data["directories_changed"] else None,
-                            data_updates=raw_data["custom_data"],
-                            message_callback=task.update_task_message,
-                        )
+                        result = self.__save_snapshot_changes(snap, raw_data, task.update_task_message)
                         self.__log_automatic_backup(snap, result.backup_path, "edit")
                         log_action(ActionCategory.CATALOGUE, ActionType.CATALOGUE_SNAPSHOT_UPDATED, result.snapshot.name)
                         

@@ -3,7 +3,7 @@ import types
 from pathlib import Path
 from unittest.mock import Mock, create_autospec
 
-from pylizlib.core.os.snap import SnapshotOperationResult
+from pylizlib.core.os.snap import Snapshot, SnapshotOperationResult
 
 def test_catalogue_controller(monkeypatch, tmp_path):
     # Mock i18n
@@ -138,6 +138,7 @@ def test_catalogue_controller(monkeypatch, tmp_path):
     class FakeCat:
         def __init__(self):
             self.path_catalogue = tmp_path / "catalogue"
+            self.get_by_id = Mock()
             self.create_snapshot = Mock(return_value=FakeSnapshot("d1", "D1"))
             self.update_snapshot_with_result = Mock(return_value=types.SimpleNamespace(
                 snapshot=FakeSnapshot("s1", "Edited"), backup_path=Path("/backups/edit.zip"),
@@ -175,7 +176,8 @@ def test_catalogue_controller(monkeypatch, tmp_path):
     
     ctrl.update_data(SnappySnapshotData([]))
     
-    snap = FakeSnapshot("s1", "Snap1")
+    snap = Snapshot("s1", "Snap1", "Original", tags=["test"], data={"visible": "old"})
+    catalogue.get_by_id.return_value = snap
     
     from snappy.model.history import ActionType
     # __open_config_dialog (edit_mode=False) -> signal_import_requested
@@ -190,10 +192,27 @@ def test_catalogue_controller(monkeypatch, tmp_path):
     # __open_config_dialog (edit_mode=True) -> signal_edit_requested
     ctrl.view.signal_edit_requested.emit(snap)
     catalogue.update_snapshot_with_result.assert_called_once_with(
-        "s1", name="D1", desc="Description", tags=["test"], directory_paths=None,
+        "s1", name="D1", desc="Description", tags=None, directory_paths=None,
         data_updates={"visible": "value"}, message_callback=task.update_task_message,
     )
     assert actions[-1][1:] == (ActionType.CATALOGUE_SNAPSHOT_UPDATED, "Edited")
+
+    retained_form = dict(form_data)
+    externally_edited = snap.clone()
+    externally_edited.name = "Concurrent name"
+    externally_edited.data["visible"] = "concurrent value"
+    form_data.update(name=snap.name, custom_data={"visible": "old", "unset": ""})
+    catalogue.get_by_id.return_value = externally_edited
+    ctrl.view.signal_edit_requested.emit(snap)
+    assert "name" not in catalogue.update_snapshot_with_result.call_args.kwargs
+    assert catalogue.update_snapshot_with_result.call_args.kwargs["data_updates"] is None
+
+    form_data["name"] = "Different name"
+    edit_call_count = catalogue.update_snapshot_with_result.call_count
+    ctrl.view.signal_edit_requested.emit(snap)
+    assert catalogue.update_snapshot_with_result.call_count == edit_call_count
+    catalogue.get_by_id.return_value = snap
+    form_data.update(retained_form)
 
     form_data["directories_changed"] = True
     ctrl.view.signal_edit_requested.emit(snap)
