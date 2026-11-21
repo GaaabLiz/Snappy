@@ -447,6 +447,9 @@ _translations: dict[str, dict[str, str]] = {
     'Create configuration': {'it': 'Crea configurazione'},
     'Creating configuration': {'it': 'Creazione configurazione in corso'},
     'Modify configuration': {'it': 'Modifica configurazione'},
+    'This snapshot changed in another instance. Reopen it and try again.': {
+        'it': 'Questo snapshot è cambiato in un’altra istanza. Riaprilo e riprova.'
+    },
     'Modifying configuration': {'it': 'Modifica configurazione in corso'},
     'Installing configuration': {'it': 'Installazione configurazione in corso'},
     'Configuration installed': {'it': 'Configurazione installata'},
