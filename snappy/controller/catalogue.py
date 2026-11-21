@@ -200,24 +200,41 @@ class CatalogueController:
 
         def action(task):
             task.update_task_message(archive.name)
+            title = tr("Import complete")
+            message = tr("Imported snapshots are available in the catalogue.")
             if kind == single:
                 catalogue.import_snapshot(archive)
                 count = 1
+            elif import_with_report := getattr(catalogue, "import_catalogue_with_report", None):
+                report = import_with_report(archive)
+                count = len(report.imported)
+                message = tr(
+                    "Imported: {imported}. Already present: {skipped}. Failed: {failed}.",
+                    imported=count, skipped=len(report.skipped), failed=len(report.failed),
+                )
+                if report.failed:
+                    title = tr("Import incomplete")
+                    first_entry, first_error = next(iter(report.failed.items()))
+                    message += "\n\n" + tr("First failure in {entry}: {error}", entry=first_entry, error=first_error)
+                    if len(report.failed) > 1:
+                        message += "\n" + tr("See the log for the other failures.")
             else:
+                # The published 1.0.4 API does not return individual outcomes.
                 with catalogue_access(catalogue.path_catalogue):
                     existing = {snapshot.id for snapshot in catalogue.get_all()}
                     catalogue.import_catalogue(archive)
                     count = sum(snapshot.id not in existing for snapshot in catalogue.get_all())
-                if not count:
-                    raise ValueError(tr("No new snapshots were found in this catalogue archive."))
-            log_action(ActionCategory.CATALOGUE, ActionType.CATALOGUE_SNAPSHOTS_IMPORTED, f"{archive.name} ({count})")
+                title = tr("Archive processed")
+                message = tr("Imported {count} new snapshots. See the log for skipped entries and errors.", count=count)
+            if count:
+                log_action(ActionCategory.CATALOGUE, ActionType.CATALOGUE_SNAPSHOTS_IMPORTED, f"{archive.name} ({count})")
+            return title, message
 
         self.dash_model.run_heavy_operation(
             tr("Import ZIP"),
             tr("Importing archive"),
             action,
-            success_msg_title=tr("Import complete"),
-            success_msg=tr("Imported snapshots are available in the catalogue."),
+            show_result_message=True,
             update_dashboard=True,
         )
 

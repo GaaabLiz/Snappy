@@ -70,8 +70,15 @@ _translations: dict[str, dict[str, str]] = {
     'Imported snapshots are available in the catalogue.': {
         'it': 'Gli snapshot importati sono disponibili nel catalogo.'
     },
-    'No new snapshots were found in this catalogue archive.': {
-        'it': 'Questo archivio del catalogo non contiene nuovi snapshot.'
+    'Import incomplete': {'it': 'Importazione incompleta'},
+    'Archive processed': {'it': 'Archivio elaborato'},
+    'Imported: {imported}. Already present: {skipped}. Failed: {failed}.': {
+        'it': 'Importati {imported}, già presenti {skipped}, non riusciti {failed}.'
+    },
+    'First failure in {entry}: {error}': {'it': 'Primo errore in {entry}: {error}'},
+    'See the log for the other failures.': {'it': 'Consulta il log per gli altri errori.'},
+    'Imported {count} new snapshots. See the log for skipped entries and errors.': {
+        'it': 'Importati {count} nuovi snapshot. Consulta il log per le voci saltate e gli errori.'
     },
     'catalogue.snapshots.imported': {'en': 'archive imported', 'it': 'archivio importato'},
     'Edit': {'it': 'Modifica'},
