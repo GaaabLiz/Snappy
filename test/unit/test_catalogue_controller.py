@@ -2,7 +2,7 @@ import sys
 import types
 from datetime import timedelta
 from pathlib import Path
-from unittest.mock import Mock, create_autospec
+from unittest.mock import Mock
 
 from pylizlib.core.os.snap import Snapshot, SnapshotOperationResult
 
@@ -118,7 +118,14 @@ def test_catalogue_controller(monkeypatch, tmp_path):
             self.sort_calls = 0
         def sort(self): self.sort_calls += 1
         def reload_data(self): pass
+    delete_confirmations = []
+    class FakeDeleteAssociatedFoldersDialog:
+        def __init__(self, paths, parent=None):
+            delete_confirmations.append(paths)
+        def exec(self):
+            return FakeMessageBox.res
     view_mod.SnapshotCatalogueWidget = FakeView
+    view_mod.DeleteAssociatedFoldersDialog = FakeDeleteAssociatedFoldersDialog
     monkeypatch.setitem(sys.modules, "snappy.view.catalogue", view_mod)
     
     model_mod = types.ModuleType("snappy.model.catalogue")
@@ -137,9 +144,6 @@ def test_catalogue_controller(monkeypatch, tmp_path):
         def update_task_message(self, m): pass
     task = FakeTask()
 
-    def remove_with_confirmation(snap_id, message_callback=None, *, expected_paths=None):
-        pass
-
     class FakeCat:
         def __init__(self):
             self.path_catalogue = tmp_path / "catalogue"
@@ -153,10 +157,6 @@ def test_catalogue_controller(monkeypatch, tmp_path):
             ))
             self.install_with_result = Mock(return_value=SnapshotOperationResult(None))
             self.delete_with_result = Mock(return_value=SnapshotOperationResult(Path("/backups/delete.zip")))
-            self.get_removable_paths = Mock(return_value=[Path("/installed/folder")])
-            self.remove_installed_copies_with_result = create_autospec(
-                remove_with_confirmation, return_value=SnapshotOperationResult(Path("/backups/remove.zip"))
-            )
             self.export_assoc_dirs = Mock()
             self.export_captured_assoc_dirs = Mock()
             self.sync_with_result = Mock(return_value=SnapshotOperationResult(Path("/backups/sync.zip")))
@@ -184,6 +184,11 @@ def test_catalogue_controller(monkeypatch, tmp_path):
     ctrl = catalogue_module.CatalogueController(FakeDash(), lambda s: search_page_calls.append(s))
     ctrl.init()
     catalogue = ctrl.dash_model.snap_catalogue
+    folder_paths = [tmp_path / "local folder", tmp_path / "other folder"]
+    list_associated_folders = Mock(return_value=folder_paths)
+    remove_associated_folders = Mock(return_value=Path("/backups/remove.zip"))
+    monkeypatch.setattr(catalogue_module, "get_associated_folders_to_delete", list_associated_folders)
+    monkeypatch.setattr(catalogue_module, "delete_associated_folders", remove_associated_folders)
     
     ctrl.update_data(SnappySnapshotData([]))
     
@@ -335,34 +340,21 @@ def test_catalogue_controller(monkeypatch, tmp_path):
     
     # __delete_snap_installed_dirs
     ctrl.view.signal_delete_installed_folders_requested.emit(snap)
-    assert "• /installed/folder" in confirmations[-1]
-    assert "backed up" in confirmations[-1]
-    catalogue.remove_installed_copies_with_result.assert_called_once_with(
-        "s1", expected_paths={Path("/installed/folder")}, message_callback=task.update_task_message
+    assert delete_confirmations[-1] == folder_paths
+    list_associated_folders.assert_called_once_with(catalogue, "s1")
+    remove_associated_folders.assert_called_once_with(
+        catalogue, "s1", expected_catalogue_path=catalogue.path_catalogue,
+        expected_paths=frozenset(folder_paths), message_callback=task.update_task_message,
     )
     assert actions[-1][1] == ActionType.CATALOGUE_INSTALLED_FOLDERS_DELETED
 
-    catalogue.get_removable_paths.return_value = []
+    list_associated_folders.return_value = []
+    confirmation_count = len(delete_confirmations)
     ctrl.view.signal_delete_installed_folders_requested.emit(snap)
-    assert "no installed folders" in msgs[-1]
-    catalogue.get_removable_paths.return_value = None
-    ctrl.view.signal_delete_installed_folders_requested.emit(snap)
-    assert "no installation record" in msgs[-1]
-    legacy_removal = Mock(return_value=SnapshotOperationResult(Path("/backups/remove.zip")))
-    catalogue.remove_installed_copies_with_result = legacy_removal
-    registry = Mock()
-    registry.get.return_value = [
-        types.SimpleNamespace(path=Path("/installed/folder")),
-        types.SimpleNamespace(path=Path("/installed/other")),
-    ]
-    monkeypatch.setattr(catalogue_module, "InstalledCopyRegistry", lambda _path: registry)
-    catalogue.get_removable_paths.return_value = [Path("/installed/folder")]
-    ctrl.view.signal_delete_installed_folders_requested.emit(snap)
-    assert "folders changed" in msgs[-1]
-    legacy_removal.assert_not_called()
-    registry.get.return_value.pop()
-    ctrl.view.signal_delete_installed_folders_requested.emit(snap)
-    legacy_removal.assert_called_once_with("s1", message_callback=task.update_task_message)
+    assert "No associated folders" in msgs[-1]
+    assert len(delete_confirmations) == confirmation_count
+    assert remove_associated_folders.call_count == 1
+    list_associated_folders.return_value = folder_paths
     
     # __update_assoc_dirs_from_installed
     ctrl.view.signal_update_with_local_dirs_requested.emit(snap)
@@ -391,6 +383,7 @@ def test_catalogue_controller(monkeypatch, tmp_path):
     ctrl.view.signal_export_request_snapshot.emit(snap)
     ctrl.view.signal_export_request_assoc_folders.emit(snap)
     ctrl.view.signal_delete_installed_folders_requested.emit(snap)
+    assert remove_associated_folders.call_count == 1
     ctrl.view.signal_update_with_local_dirs_requested.emit(snap)
     
     FakeMessageBox.res = True
@@ -413,6 +406,7 @@ def test_catalogue_controller(monkeypatch, tmp_path):
     FakeDialogConfig.exec = old_exec
     
     FakeMessageBox.exec_ = lambda self: False
+    FakeMessageBox.res = False
     ctrl.view.signal_install_requested.emit(snap)
     ctrl.view.signal_delete_requested.emit(snap)
     ctrl.view.signal_export_request_snapshot.emit(snap)

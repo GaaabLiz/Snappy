@@ -4,13 +4,42 @@ from PySide6.QtCore import Signal, Qt, QMargins, QModelIndex
 from PySide6.QtGui import QActionGroup
 from PySide6.QtWidgets import QHBoxLayout, QWidget, QHeaderView
 from pylizlib.core.os.snap import Snapshot, SnapshotSortKey
-from qfluentwidgets import SearchLineEdit, Action, FluentIcon, CommandBar, setFont, BodyLabel, RoundMenu, \
-    TransparentDropDownPushButton, CheckableMenu, MenuIndicatorType, TableView
+from qfluentwidgets import (
+    Action, BodyLabel, CheckableMenu, CommandBar, FluentIcon, MenuIndicatorType, MessageBoxBase,
+    PlainTextEdit, RoundMenu, SearchLineEdit, SubtitleLabel, TableView, TransparentDropDownPushButton,
+    setFont,
+)
 
 from snappy.application.app import app_settings, AppSettings
 from snappy.model.catalogue import CatalogueModel
 from snappy.view.util.frame import SnappyQFrame
 from snappy.application.i18n import tr
+
+
+class DeleteAssociatedFoldersDialog(MessageBoxBase):
+    """Show the exact paths to delete in a scrollable confirmation."""
+
+    def __init__(self, paths: list[Path], parent=None):
+        super().__init__(parent)
+        self.viewLayout.addWidget(SubtitleLabel(tr("Delete installed folders"), self))
+        summary = BodyLabel(
+            tr("The following associated folders will be backed up and "
+               "deleted from this computer."),
+            self,
+        )
+        summary.setWordWrap(True)
+        self.viewLayout.addWidget(summary)
+        self.path_list = PlainTextEdit(self)
+        self.path_list.setReadOnly(True)
+        self.path_list.setPlainText("\n".join(str(path) for path in paths))
+        self.viewLayout.addWidget(self.path_list)
+        self.widget.setMinimumWidth(450)
+
+        self.yesButton.setText(tr("Delete"))
+        self.yesButton.setAutoDefault(False)
+        self.cancelButton.setText(tr("Cancel"))
+        self.cancelButton.setDefault(True)
+        self.cancelButton.setFocus()
 
 
 class SnapshotCatalogueUiBuilder:
