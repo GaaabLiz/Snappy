@@ -1,4 +1,4 @@
-from snappy.view.catalogue import SnapshotCatalogueWidget
+from snappy.view.catalogue import DeleteAssociatedFoldersDialog, SnapshotCatalogueWidget
 from pylizlib.core.os.snap import SnapshotSortKey
 
 def test_catalogue_view(qtbot):
@@ -22,5 +22,18 @@ def test_catalogue_view(qtbot):
     view.table.clearSelection()
     view._on_item_selection_changed()
     assert view.action_edit.isEnabled() == False
+
+
+def test_delete_folder_confirmation_shows_every_path_literally(qtbot, tmp_path):
+    from PySide6.QtWidgets import QWidget
+
+    parent = QWidget()
+    qtbot.addWidget(parent)
+    paths = [tmp_path / "Project & config <b>", *(tmp_path / f"folder {i}" for i in range(50))]
+    dialog = DeleteAssociatedFoldersDialog(paths, parent)
+    qtbot.addWidget(dialog)
+    assert dialog.path_list.toPlainText().splitlines() == [str(path) for path in paths]
+    assert dialog.path_list.isReadOnly()
+    assert dialog.cancelButton.isDefault()
     
 

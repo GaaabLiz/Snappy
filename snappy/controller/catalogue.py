@@ -1,4 +1,3 @@
-from inspect import signature
 from pathlib import Path
 
 from PySide6.QtWidgets import QFileDialog, QInputDialog
@@ -7,7 +6,6 @@ from PySide6.QtCore import QUrl
 from loguru import logger
 from pylizlib.core.os.snap import Snapshot, SnapshotBusyError, SnapshotUpdateResult
 from pylizlib.core.os.snap.storage.coordination import catalogue_access
-from pylizlib.core.os.snap.storage.install_registry import InstalledCopyRegistry
 from pylizlib.core.os.system import get_system_username
 from pylizlib.qtfw.util.ui import UiUtils
 from qfluentwidgets import MessageBox
@@ -15,9 +13,10 @@ from qfluentwidgets import MessageBox
 from snappy.application.app import app, AppSettings, app_settings
 from snappy.model.history import log_action, ActionCategory, ActionType
 from snappy.domain.data import SnappySnapshotData
+from snappy.model.associated_folders import delete_associated_folders, get_associated_folders_to_delete
 from snappy.model.catalogue import CatalogueModel
 from snappy.model.dashboard import DashboardModel
-from snappy.view.catalogue import SnapshotCatalogueWidget
+from snappy.view.catalogue import DeleteAssociatedFoldersDialog, SnapshotCatalogueWidget
 from snappy.view.catalogue_imp_dialog import DialogConfig
 from snappy.application.i18n import tr
 
@@ -444,52 +443,34 @@ class CatalogueController:
         )
 
     def __delete_snap_installed_dirs(self, snap: Snapshot):
-        """
-        Deletes the currently installed folders associated with the given snapshot.
-
-        This affects the target directories on the system where the snapshot was installed.
-
-        Args:
-            snap (Snapshot): The snapshot whose installed folders will be deleted.
-        """
+        """Confirm and remove the local folders at the selected snapshot's associated paths."""
         logger.debug(f"Installed folders deletion requested for {snap.name}")
         try:
             catalogue = self.dash_model.snap_catalogue
-            paths = catalogue.get_removable_paths(snap.id)
-            if paths is None:
-                UiUtils.show_message(tr("Delete installed folders"), tr("There is no installation record for this snapshot."), self.view)
-                return
+            catalogue_path = catalogue.path_catalogue
+            paths = get_associated_folders_to_delete(catalogue, snap.id)
             if not paths:
-                UiUtils.show_message(tr("Delete installed folders"), tr("There are no installed folders to remove for this snapshot."), self.view)
+                UiUtils.show_message(
+                    tr("Delete installed folders"),
+                    tr("No associated folders exist on this computer."),
+                    self.view,
+                )
                 return
 
             confirmed_paths = frozenset(paths)
-            path_list = "\n".join(f"• {path}" for path in paths)
-            confirmation_text = f"{tr('The following installed folders will be backed up and removed.')}\n\n{path_list}"
-            w = MessageBox(tr("Delete installed folders"), confirmation_text, parent=self.view)
-            if w.exec_():
+            dialog = DeleteAssociatedFoldersDialog(paths, parent=self.view)
+            if dialog.exec():
                 def action(task):
-                    remove = catalogue.remove_installed_copies_with_result
-                    if "expected_paths" in signature(remove).parameters:
-                        result = remove(
-                            snap.id,
-                            expected_paths=confirmed_paths,
-                            message_callback=task.update_task_message,
-                        )
-                    else:
-                        # The published 1.0.3 API has no expected_paths argument.
-                        with catalogue_access(catalogue.path_catalogue):
-                            current_paths = catalogue.get_removable_paths(snap.id)
-                            records = InstalledCopyRegistry(catalogue.path_catalogue).get(snap.id)
-                            if (
-                                current_paths is None or set(current_paths) != confirmed_paths
-                                or records is None or {record.path for record in records} != confirmed_paths
-                            ):
-                                raise ValueError(tr("The installed folders changed. Review the list and try again."))
-                            result = remove(snap.id, message_callback=task.update_task_message)
-                    if result.backup_path is not None:
+                    backup = delete_associated_folders(
+                        catalogue,
+                        snap.id,
+                        expected_catalogue_path=catalogue_path,
+                        expected_paths=confirmed_paths,
+                        message_callback=task.update_task_message,
+                    )
+                    if backup is not None:
                         logger.info(f"Installed folders deletion for {snap.name} completed.")
-                        self.__log_automatic_backup(snap, result.backup_path, "remove installed folders")
+                        self.__log_automatic_backup(snap, backup, "remove installed folders")
                         log_action(ActionCategory.CATALOGUE, ActionType.CATALOGUE_INSTALLED_FOLDERS_DELETED, snap.name)
                 
                 self.dash_model.run_heavy_operation(
