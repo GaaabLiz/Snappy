@@ -146,3 +146,26 @@ def test_snapshot_preferences_update_the_library_settings(qtbot, monkeypatch, tm
     finally:
         for item, value in zip(items, previous):
             app_settings.set(item, value)
+
+
+def test_auto_theme_updates_the_session_without_saving_a_fixed_theme():
+    from PySide6.QtCore import Qt
+    from qfluentwidgets import Theme, qconfig
+
+    from snappy.view.dashboard import DashboardView
+
+    from types import SimpleNamespace
+
+    view = SimpleNamespace(_apply_theme=lambda theme: DashboardView._apply_theme(None, theme))
+    original = qconfig.get(qconfig.themeMode)
+    try:
+        qconfig.set(qconfig.themeMode, Theme.AUTO, save=False)
+        DashboardView._on_system_theme_changed(view, Qt.ColorScheme.Dark)
+        assert qconfig.theme == Theme.DARK
+        assert qconfig.get(qconfig.themeMode) == Theme.AUTO
+
+        qconfig.set(qconfig.themeMode, Theme.LIGHT, save=False)
+        DashboardView._on_system_theme_changed(view, Qt.ColorScheme.Dark)
+        assert qconfig.theme == Theme.LIGHT
+    finally:
+        qconfig.set(qconfig.themeMode, original, save=False)
