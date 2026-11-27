@@ -1,6 +1,8 @@
 import sys
 import types
 
+import pytest
+
 def _import_splash_module(monkeypatch):
     app_module = types.ModuleType("snappy.application.app")
     
@@ -67,3 +69,12 @@ def test_first_launch_creates_the_default_catalogue(monkeypatch, tmp_path):
 
     assert splash_module.SplashModel().check_catalogue_path()
     assert default.is_dir()
+
+
+@pytest.mark.parametrize("configured_path", ["", "  "])
+def test_blank_catalogue_path_does_not_accept_launch_directory(monkeypatch, tmp_path, configured_path):
+    splash_module = _import_splash_module(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    splash_module.app_settings.set("catalogue_path", configured_path)
+
+    assert splash_module.SplashModel().check_catalogue_path() is False

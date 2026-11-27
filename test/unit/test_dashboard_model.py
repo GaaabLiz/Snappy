@@ -1,6 +1,8 @@
 import sys
 import types
 
+import pytest
+
 
 def _import_dashboard_model_module(monkeypatch):
     logs = {"info": [], "debug": [], "error": []}
@@ -474,3 +476,12 @@ def test_heavy_operation_blocks_refresh_and_recovers_from_launch_error(monkeypat
     assert not model.run_heavy_operation("delete", "Deleting", lambda: None)
     assert not model.operation_active
     assert model._heavy_runners == []
+
+
+@pytest.mark.parametrize("configured_path", ["", "  "])
+def test_dashboard_rejects_blank_catalogue_before_construction(monkeypatch, configured_path):
+    module, _logs = _import_dashboard_model_module(monkeypatch)
+    monkeypatch.setattr(module.app_settings, "get", lambda _key: configured_path)
+
+    with pytest.raises(ValueError, match="catalogue path must be configured"):
+        module.DashboardModel()
