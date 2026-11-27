@@ -195,6 +195,14 @@ class WidgetSettings(SnappyQFrame):
         grp_manager.add_widget(None, self.card_copy_strategy, None)
         grp_manager.add_widget(None, self.card_copy_metadata, None)
         grp_manager.add_widget(AppSettings.allow_legacy_snapshots, self.card_allow_legacy_snapshots, None)
+        setting_verification = AppSettings.verify_backup_before_removal
+        self.card_verify_backup_before_removal = SwitchSettingCard(
+            icon=FluentIcon.SAVE,
+            title=tr("Verify backup before deletion"),
+            content=tr("Compare the backup with the local folders before permanently deleting them."),
+            configItem=setting_verification,
+        )
+        grp_manager.add_widget(setting_verification, self.card_verify_backup_before_removal, None)
         grp_manager.install_group_on(layout)
 
 

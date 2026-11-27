@@ -14,6 +14,7 @@ from pylizlib.core.os.snap import (
     SnapshotCatalogue,
     SnapshotManager,
     SnapshotOperationResult,
+    SourceChangedError,
 )
 from pylizlib.core.os.snap.callbacks import MessageCallback, SnapshotPercentCallback
 from pylizlib.core.os.snap.operations.destinations import validate_destructive_destinations
@@ -123,6 +124,10 @@ def _existing_associations(
 
 def get_associated_folders_to_delete(catalogue: SnapshotCatalogue, snapshot_id: str) -> list[Path]:
     """List the exact local directories to show in the removal confirmation."""
+    list_paths = getattr(catalogue, "get_associated_paths_for_removal", None)
+    if list_paths is not None:
+        return list_paths(snapshot_id)
+
     with catalogue_access(catalogue.path_catalogue, write=False):
         _, targets = _existing_associations(catalogue, snapshot_id)
         return [path for _, path in targets]
@@ -140,6 +145,23 @@ def delete_associated_folders(
     with catalogue_access(catalogue.path_catalogue):
         if catalogue.path_catalogue != expected_catalogue_path:
             raise ValueError(tr("The catalogue changed. Review the folder list and try again."))
+
+        verify_backup = app_settings.get(AppSettings.verify_backup_before_removal)
+        remove_paths = getattr(catalogue, "remove_associated_paths", None)
+        if remove_paths is not None:
+            try:
+                return remove_paths(
+                    snapshot_id, expected_paths=expected_paths, verify_backup=verify_backup, message_callback=message_callback,
+                )
+            except SourceChangedError as error:
+                raise SourceChangedError(tr(
+                    "The local folders differ from the backup. Deletion was cancelled and the folders were restored. {error}",
+                    error=error,
+                )) from error
+        if verify_backup:
+            raise RuntimeError(tr("Backup verification requires a newer version of pylizlib."))
+
+        # Compatibility with pylizlib releases before transactional associated-folder removal.
         snapshot, targets = _existing_associations(catalogue, snapshot_id)
         if {path for _, path in targets} != set(expected_paths):
             raise ValueError(tr("The associated folders changed. Review the list and try again."))

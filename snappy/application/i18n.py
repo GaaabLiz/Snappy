@@ -208,6 +208,16 @@ _translations: dict[str, dict[str, str]] = {
     'Are you sure you want to export the folders associated with the selected snapshot?': {'it': 'Sei sicuro di voler esportare le cartelle associate allo snapshot selezionato ?'},
     'Select the save folder for the associated folders': {'it': 'Seleziona la cartella di salvataggio delle cartelle associate'},
     'Delete installed folders': {'it': 'Elimina cartelle installate'},
+    'Verify backup before deletion': {'it': 'Verifica integrità del backup prima dell’eliminazione'},
+    'Compare the backup with the local folders before permanently deleting them.': {
+        'it': 'Confronta il backup con le cartelle locali prima di eliminarle definitivamente.'
+    },
+    'Backup verification requires a newer version of pylizlib.': {
+        'it': 'La verifica del backup richiede una versione più recente di pylizlib.'
+    },
+    'The local folders differ from the backup. Deletion was cancelled and the folders were restored. {error}': {
+        'it': 'Le cartelle locali differiscono dal backup. L’eliminazione è stata annullata e le cartelle sono state ripristinate. {error}'
+    },
     'The following associated folders will be backed up and deleted from this computer.': {
         'it': 'Verrà creato un backup delle seguenti cartelle associate prima di eliminarle da questo computer.'
     },

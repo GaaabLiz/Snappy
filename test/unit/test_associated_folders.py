@@ -1,6 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import Mock
 
 import pytest
 from pylizlib.core.os.snap import SnapshotBusyError, SnapshotCatalogue, SnapshotSettings
@@ -116,6 +117,45 @@ def test_delete_requires_backup_for_a_folder_created_outside_snappy(workspace):
             expected_paths=confirmed,
         )
     assert data.read_text(encoding="utf-8") == "local data"
+
+
+@pytest.mark.parametrize("verify_backup", [False, True])
+def test_delete_passes_backup_verification_preference_to_pyliz(workspace, monkeypatch, verify_backup):
+    directory = workspace / "local-data"
+    archive = workspace / "archive.zip"
+    catalogue = SnapshotCatalogue(workspace / "catalogue")
+    remove_paths = Mock(return_value=archive)
+    monkeypatch.setattr(catalogue, "remove_associated_paths", remove_paths, raising=False)
+    monkeypatch.setattr(associated_folders.app_settings, "get", lambda _: verify_backup)
+    message_callback = Mock()
+
+    assert delete_associated_folders(
+        catalogue,
+        "sample",
+        expected_catalogue_path=catalogue.path_catalogue,
+        expected_paths=[directory],
+        message_callback=message_callback,
+    ) == archive
+    remove_paths.assert_called_once_with(
+        "sample", expected_paths=[directory], verify_backup=verify_backup, message_callback=message_callback,
+    )
+
+
+def test_enabled_verification_refuses_removal_with_older_pyliz(workspace, monkeypatch):
+    directory = workspace / "local-data"
+    directory.mkdir()
+    catalogue = SnapshotCatalogue(workspace / "catalogue")
+    monkeypatch.setattr(catalogue, "remove_associated_paths", None, raising=False)
+    monkeypatch.setattr(associated_folders.app_settings, "get", lambda _: True)
+
+    with pytest.raises(RuntimeError, match="requires a newer version of pylizlib"):
+        delete_associated_folders(
+            catalogue,
+            "sample",
+            expected_catalogue_path=catalogue.path_catalogue,
+            expected_paths=[directory],
+        )
+    assert directory.is_dir()
 
 
 @pytest.mark.parametrize(("change", "message"), [("association", "folders changed"), ("mode", "mode changed")])
