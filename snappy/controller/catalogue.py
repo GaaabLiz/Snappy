@@ -13,10 +13,15 @@ from qfluentwidgets import MessageBox
 from snappy.application.app import app, AppSettings, app_settings
 from snappy.model.history import log_action, ActionCategory, ActionType
 from snappy.domain.data import SnappySnapshotData
-from snappy.model.associated_folders import delete_associated_folders, get_associated_folders_to_delete
+from snappy.model.associated_folders import (
+    delete_associated_folders,
+    get_associated_folders_to_delete,
+    get_installation_plan,
+    install_confirmed_snapshot,
+)
 from snappy.model.catalogue import CatalogueModel
 from snappy.model.dashboard import DashboardModel
-from snappy.view.catalogue import DeleteAssociatedFoldersDialog, SnapshotCatalogueWidget
+from snappy.view.catalogue import DeleteAssociatedFoldersDialog, InstallSnapshotDialog, SnapshotCatalogueWidget
 from snappy.view.catalogue_imp_dialog import DialogConfig
 from snappy.application.i18n import tr
 
@@ -255,36 +260,36 @@ class CatalogueController:
             self.search_page_opener(snapshot)
 
     def __install_snapshot(self, snap: Snapshot):
-        """
-        Prompts the user to confirm, then installs a given snapshot.
-
-        Installs the snapshot by replacing the current environment's target directories
-        with the ones stored in the snapshot. This runs as a heavy operation.
-
-        Args:
-            snap (Snapshot): The snapshot to install.
-        """
+        """Confirm the persisted destinations and the current installation mode."""
         logger.debug(f"Installation requested for {snap.name}")
         try:
-            w = MessageBox(tr("Install configuration"), tr("Are you sure you want to install the selected snapshot? All current directories will be replaced with those contained in the snapshot."), parent=self.view)
-            if w.exec_():
-                def action(task):
-                    clear_dest = app_settings.get(AppSettings.clear_snap_attached_folders_before_install)
-                    result = self.dash_model.snap_catalogue.install_with_result(snap, clear_destination=clear_dest, progress_callback=task.update_task_progress, message_callback=task.update_task_message)
-                    logger.info(f"Configuration installation {snap.name} completed.")
-                    self.__log_automatic_backup(snap, result.backup_path, "install")
-                    log_action(ActionCategory.CATALOGUE, ActionType.CATALOGUE_SNAPSHOT_INSTALLED, snap.name)
-                
-                self.dash_model.run_heavy_operation(
-                    tr("Install configuration"),
-                    tr("Installing configuration"),
-                    action,
-                    success_msg_title=tr("Configuration installed"),
-                    success_msg=tr("The configuration has been installed successfully."),
-                    update_dashboard=True
+            catalogue = self.dash_model.snap_catalogue
+            confirmed = get_installation_plan(catalogue, snap.id)
+            dialog = InstallSnapshotDialog(confirmed.paths, confirmed.clear_destination, parent=self.view)
+            if not dialog.exec():
+                return
+
+            def action(task):
+                result = install_confirmed_snapshot(
+                    catalogue,
+                    confirmed,
+                    progress_callback=task.update_task_progress,
+                    message_callback=task.update_task_message,
                 )
-        except Exception as e:
-            logger.error(f"Error during install process: {e}")
+                logger.info(f"Configuration installation {snap.name} completed.")
+                self.__log_automatic_backup(snap, result.backup_path, "install")
+                log_action(ActionCategory.CATALOGUE, ActionType.CATALOGUE_SNAPSHOT_INSTALLED, snap.name)
+
+            self.dash_model.run_heavy_operation(
+                tr("Install configuration"),
+                tr("Installing configuration"),
+                action,
+                success_msg_title=tr("Configuration installed"),
+                success_msg=tr("The configuration has been installed successfully."),
+                update_dashboard=True,
+            )
+        except Exception as error:
+            UiUtils.show_message(tr("Installation error"), str(error), self.view)
 
     def __edit_snapshot(self, snap: Snapshot):
         """

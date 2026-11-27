@@ -177,8 +177,16 @@ _translations: dict[str, dict[str, str]] = {
     'The configuration has been created successfully.': {'it': 'La configurazione è stata creata con successo.'},
     'The configuration has been modified successfully.': {'it': 'La configurazione è stata modificata con successo.'},
     'An error occurred: {error}': {'it': 'Si è verificato un errore: {error}'},
+    "Replace folders: the snapshot will replace the entire contents of these destinations.": {
+        "it": "Sostituisci cartelle: lo snapshot sostituirà l’intero contenuto di queste destinazioni."
+    },
+    "Merge folders: matching files and folders at the top level will be replaced. Other contents will be kept.": {
+        "it": "Unisci cartelle: i file e le cartelle omonimi al primo livello verranno sostituiti. Gli altri contenuti saranno conservati."
+    },
+    "The installation mode changed. Review the confirmation and try again.": {
+        "it": "La modalità di installazione è cambiata. Rivedi la conferma e riprova."
+    },
     'Install configuration': {'it': 'Installa configurazione'},
-    'Are you sure you want to install the selected snapshot? All current directories will be replaced with those contained in the snapshot.': {'it': 'Sei sicuro di voler installare lo snapshot selezionato ? Tutte le directory presenti attualmente verranno rimpiazzate con quelle contenute nello snapshot.'},
     'Installation error': {'it': 'Errore di installazione'},
     'An error occurred during installation: {error}': {'it': "Si è verificato un errore durante l'installazione: {error}"},
     'Edit error': {'it': 'Errore di modifica'},
