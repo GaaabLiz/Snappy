@@ -8,7 +8,7 @@ from loguru import logger
 from pylizlib.core.os.snap import SnapshotCatalogue, Snapshot
 
 from snappy.model.history import log_action, ActionCategory, ActionType
-from snappy.model.catalogue_searcher import CatalogueSearcherModel, SearchOutcome, SearchResultsTreeModel
+from snappy.model.catalogue_searcher import CatalogueSearcherModel, InvalidRegexError, SearchOutcome, SearchResultsTreeModel
 from snappy.view.catalogue_searcher import CatalogueSearcherView, SnapshotResultsDialog
 from snappy.application.i18n import tr
 
@@ -151,16 +151,18 @@ class CatalogueSearcherController:
         try:
             search_started = self.model.search(search_text, query_type, search_target, extensions)
         except Exception as error:
-            logger.exception("Failed to start catalogue search")
+            if not isinstance(error, InvalidRegexError):
+                logger.exception("Failed to start catalogue search")
             log_action(ActionCategory.SEARCH, ActionType.SEARCH_FAILED, str(error))
             self.view.set_operation_status(False)
             self.view.action_start.setEnabled(True)
             self.view.action_stop.setEnabled(False)
-            MessageBox(
-                tr("Search error"),
-                tr("The search could not be started: {error}", error=str(error)),
-                self.view
-            ).exec()
+            message = (
+                tr("Invalid regular expression: {error}", error=str(error))
+                if isinstance(error, InvalidRegexError)
+                else tr("The search could not be started: {error}", error=str(error))
+            )
+            MessageBox(tr("Search error"), message, self.view).exec()
             return
 
         if not search_started:

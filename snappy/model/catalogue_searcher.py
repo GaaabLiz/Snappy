@@ -19,6 +19,10 @@ from snappy.application.i18n import tr
 RESULT_FILE_PATH_ROLE = Qt.ItemDataRole.UserRole + 1
 
 
+class InvalidRegexError(ValueError):
+    """The regex query could not be compiled."""
+
+
 @dataclass
 class SearchOutcome:
     cancelled: bool = False
@@ -382,6 +386,19 @@ class CatalogueSearcherModel(QObject):
         if self.dash_model and self.dash_model.operation_active:
             return False
 
+        params = SnapshotSearchParams(
+            query=text,
+            query_type=query_type,
+            search_target=search_target,
+            extensions=extensions,
+            max_results=app_settings.get(AppSettings.search_max_results),
+            regex_timeout_seconds=app_settings.get(AppSettings.search_regex_timeout),
+        )
+        try:
+            SnapshotSearcher.validate_query(params)
+        except ValueError as error:
+            raise InvalidRegexError(str(error)) from error
+
         self.table_model.reset_search_state()
         self.tree_model_manager.clear()
         self._current_message = tr("Starting...")
@@ -390,15 +407,6 @@ class CatalogueSearcherModel(QObject):
         self._emit_status_card_update()
 
         try:
-            params = SnapshotSearchParams(
-                query=text,
-                query_type=query_type,
-                search_target=search_target,
-                extensions=extensions,
-                max_results=app_settings.get(AppSettings.search_max_results),
-                regex_timeout_seconds=app_settings.get(AppSettings.search_regex_timeout),
-            )
-            SnapshotSearcher.validate_query(params)
             operations = self.__get_runner_operations(params)
             if not operations:
                 logger.info("No snapshots are available for search.")
