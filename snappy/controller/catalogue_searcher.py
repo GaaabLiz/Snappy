@@ -138,39 +138,30 @@ class CatalogueSearcherController:
             m.exec()
             return
 
-        self.view.set_operation_status(True)
         query_type = self.view.get_selected_query_type()
         search_target = self.view.get_selected_search_target()
         extensions = self.view.get_selected_extensions()
 
-        # Toggle button states
-        self.view.action_start.setEnabled(False)
-        self.view.action_stop.setEnabled(True)
-
-        logger.info(f"Starting search: text='{search_text}', type={query_type}, target={search_target}")
         try:
             search_started = self.model.search(search_text, query_type, search_target, extensions)
+        except InvalidRegexError as error:
+            message = tr("Invalid regular expression: {error}", error=str(error))
+            MessageBox(tr("Invalid regular expression"), message, self.view).exec()
+            return
         except Exception as error:
-            if not isinstance(error, InvalidRegexError):
-                logger.exception("Failed to start catalogue search")
+            logger.exception("Failed to start catalogue search")
             log_action(ActionCategory.SEARCH, ActionType.SEARCH_FAILED, str(error))
-            self.view.set_operation_status(False)
-            self.view.action_start.setEnabled(True)
-            self.view.action_stop.setEnabled(False)
-            message = (
-                tr("Invalid regular expression: {error}", error=str(error))
-                if isinstance(error, InvalidRegexError)
-                else tr("The search could not be started: {error}", error=str(error))
-            )
+            message = tr("The search could not be started: {error}", error=str(error))
             MessageBox(tr("Search error"), message, self.view).exec()
             return
 
         if not search_started:
-            self.view.set_operation_status(False)
-            self.view.action_start.setEnabled(True)
-            self.view.action_stop.setEnabled(False)
             return
 
+        self.view.set_operation_status(True)
+        self.view.action_start.setEnabled(False)
+        self.view.action_stop.setEnabled(True)
+        logger.info(f"Started search: text='{search_text}', type={query_type}, target={search_target}")
         log_action(ActionCategory.SEARCH, ActionType.SEARCH_STARTED, f"query={search_text}")
 
     def _stop_search(self):

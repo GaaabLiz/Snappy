@@ -26,9 +26,10 @@ def test_catalogue_searcher_controller(monkeypatch):
     
     # Mock MessageBox
     import qfluentwidgets
+    messages = []
     class FakeMessageBox:
         res = True
-        def __init__(self, t, d, parent=None): pass
+        def __init__(self, t, d, parent=None): messages.append((t, d))
         def exec(self): return self.res
     monkeypatch.setattr(qfluentwidgets, "MessageBox", FakeMessageBox)
     
@@ -143,6 +144,27 @@ def test_catalogue_searcher_controller(monkeypatch):
     # search missing
     ctrl.view.action_start.triggered.emit() # message box
     
+    def invalid_regex(*args):
+        raise InvalidRegexError("unclosed group")
+
+    ctrl.view.search_bar.t = "("
+    started_search = ctrl.model.search
+    monkeypatch.setattr(ctrl.model, "search", invalid_regex)
+    action_count = len(actions)
+    ctrl.view.action_start.triggered.emit()
+    assert messages[-1] == ("Invalid regular expression", "Invalid regular expression: unclosed group")
+    assert len(actions) == action_count
+    assert ctrl.view.op_status is None
+
+    def failed_search(*args):
+        raise RuntimeError("runner unavailable")
+
+    monkeypatch.setattr(ctrl.model, "search", failed_search)
+    ctrl.view.action_start.triggered.emit()
+    assert messages[-1] == ("Search error", "The search could not be started: runner unavailable")
+    assert actions[-1][1] == ActionType.SEARCH_FAILED
+    monkeypatch.setattr(ctrl.model, "search", started_search)
+
     # search ok
     ctrl.view.search_bar.t = "test"
     ctrl.view.action_start.triggered.emit()
