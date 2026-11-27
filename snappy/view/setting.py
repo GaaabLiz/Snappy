@@ -416,7 +416,7 @@ class WidgetSettings(SnappyQFrame):
             icon=FluentIcon.BRUSH,
             title=tr("Application theme"),
             content=tr("Select the application theme"),
-            texts=[tr("Light"), tr("Dark")],
+            texts=[tr(mode.value) for mode in AppSettings.themeMode.options],
         )
         self.card_theme.optionChanged.connect(lambda: self.signal_theme_changed.emit())
 
