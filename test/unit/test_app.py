@@ -107,12 +107,14 @@ def test_snapshot_preferences_update_the_library_settings(qtbot, monkeypatch, tm
         AppSettings.copy_strategy, AppSettings.copy_metadata_mode, AppSettings.allow_legacy_snapshots,
         AppSettings.max_archive_gib, AppSettings.max_archive_entries, AppSettings.archive_temp_directory,
         AppSettings.search_max_results, AppSettings.search_regex_timeout,
+        AppSettings.verify_backup_before_removal,
     )
     previous = [app_settings.get(item) for item in items]
     try:
         assert AppSettings.copy_strategy.defaultValue == "standard"
         assert AppSettings.copy_metadata_mode.defaultValue == "basic"
         assert AppSettings.allow_legacy_snapshots.defaultValue is True
+        assert AppSettings.verify_backup_before_removal.defaultValue is False
 
         view = WidgetSettings()
         qtbot.addWidget(view)
@@ -137,6 +139,11 @@ def test_snapshot_preferences_update_the_library_settings(qtbot, monkeypatch, tm
 
         view.card_allow_legacy_snapshots.setChecked(False)
         assert snap_settings.allow_unverified_legacy_snapshots is False
+
+        view.card_verify_backup_before_removal.setChecked(True)
+        assert app_settings.get(AppSettings.verify_backup_before_removal) is True
+        view.card_verify_backup_before_removal.setChecked(False)
+        assert app_settings.get(AppSettings.verify_backup_before_removal) is False
 
         monkeypatch.setattr("snappy.view.setting.QFileDialog.getExistingDirectory", lambda *_: str(tmp_path))
         view.card_archive_temp.clicked.emit()

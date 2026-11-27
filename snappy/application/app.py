@@ -140,6 +140,7 @@ class AppSettings(QConfig):
     debug_test_mode = QtFwQConfigItem(False, SETTING_GROUP_APP, "DebugTestMode", False, BoolValidator())
     clear_snap_attached_folders_before_install = QtFwQConfigItem(True, SETTING_GROUP_CONFIGS, "Clear snap attached folders before install", DEFAULT_SETTING_CLEAR_SNAP_ATTACHED_FOLDERS_BEFORE_INSTALL, BoolValidator())
     install_with_everyone_full_control = QtFwQConfigItem(True, SETTING_GROUP_CONFIGS, "Grant Everyone full control", sys.platform == "win32", BoolValidator())
+    verify_backup_before_removal = QtFwQConfigItem(True, SETTING_GROUP_CONFIGS, "Verify backup before removal", False, BoolValidator())
     allow_legacy_snapshots = QtFwQConfigItem(True, SETTING_GROUP_CONFIGS, "Allow legacy snapshots", True, BoolValidator())
     copy_strategy = OptionsConfigItem(SETTING_GROUP_CONFIGS, "Copy strategy", "standard", OptionsValidator(list(COPY_STRATEGIES)))
     copy_metadata_mode = OptionsConfigItem(SETTING_GROUP_CONFIGS, "Copy metadata mode", CopyMetadataMode.BASIC.value,
