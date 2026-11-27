@@ -269,6 +269,17 @@ def test_catalogue_searcher_model(monkeypatch):
     # Operation finished
     model.on_operation_finished(FakeOp(True, False, [report]))
     assert model.table_model._results_count_data["s2"] == "1"
+
+    last_status = msgs[-1]
+    with pytest.raises(searcher_module.InvalidRegexError):
+        model.search("(", QueryType.REGEX, SearchTarget.FILE_NAME, [])
+
+    assert model.tree_model_manager.model.rowCount() == 1
+    assert model.table_model._results_count_data["s2"] == "1"
+    assert model.get_results_for_snapshot("s2") == [res]
+    assert msgs[-1] == last_status
+    assert not model.is_search_active
+    assert not dash.operation_active
     
     model.on_operation_finished(FakeOp(True, False, []))
     assert model.table_model._results_count_data["s2"] == "0"

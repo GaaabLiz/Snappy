@@ -77,9 +77,10 @@ def test_catalogue_searcher_controller(monkeypatch):
     view_mod.SnapshotResultsDialog = FakeResultsDialog
     monkeypatch.setitem(sys.modules, "snappy.view.catalogue_searcher", view_mod)
     
-    from snappy.model.catalogue_searcher import SearchOutcome
+    from snappy.model.catalogue_searcher import InvalidRegexError, SearchOutcome
 
     model_mod = types.ModuleType("snappy.model.catalogue_searcher")
+    model_mod.InvalidRegexError = InvalidRegexError
     model_mod.SearchOutcome = SearchOutcome
     class FakeTM:
         def remove_snapshot(self, row): pass
