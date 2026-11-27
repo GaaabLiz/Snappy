@@ -9,6 +9,9 @@ _current_language = "en"
 
 _translations: dict[str, dict[str, str]] = {
     "The backup path could not be saved: {error}": {"it": "Impossibile salvare il percorso dei backup: {error}"},
+    "Invalid regular expression": {"it": "Espressione regolare non valida"},
+    "Search error": {"it": "Errore di ricerca"},
+    "The search could not be started: {error}": {"it": "Impossibile avviare la ricerca: {error}"},
     "Invalid regular expression: {error}": {"it": "Espressione regolare non valida: {error}"},
     "Search settings": {"it": "Ricerca"},
     "Copy strategy": {"it": "Strategia di copia"},
