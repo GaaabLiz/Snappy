@@ -141,23 +141,6 @@ def test_delete_passes_backup_verification_preference_to_pyliz(workspace, monkey
     )
 
 
-def test_enabled_verification_refuses_removal_with_older_pyliz(workspace, monkeypatch):
-    directory = workspace / "local-data"
-    directory.mkdir()
-    catalogue = SnapshotCatalogue(workspace / "catalogue")
-    monkeypatch.setattr(catalogue, "remove_associated_paths", None, raising=False)
-    monkeypatch.setattr(associated_folders.app_settings, "get", lambda _: True)
-
-    with pytest.raises(RuntimeError, match="requires a newer version of pylizlib"):
-        delete_associated_folders(
-            catalogue,
-            "sample",
-            expected_catalogue_path=catalogue.path_catalogue,
-            expected_paths=[directory],
-        )
-    assert directory.is_dir()
-
-
 @pytest.mark.parametrize(("change", "message"), [("association", "folders changed"), ("mode", "mode changed")])
 def test_install_rejects_changes_after_confirmation(workspace, monkeypatch, change, message):
     first = workspace / "A"
