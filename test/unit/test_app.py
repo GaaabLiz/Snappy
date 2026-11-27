@@ -169,3 +169,37 @@ def test_auto_theme_updates_the_session_without_saving_a_fixed_theme():
         assert qconfig.theme == Theme.LIGHT
     finally:
         qconfig.set(qconfig.themeMode, original, save=False)
+
+
+def test_backup_path_change_is_rolled_back_if_settings_cannot_be_saved(monkeypatch, tmp_path):
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+
+    import pytest
+
+    from snappy.application.app import AppSettings, app_settings, snap_settings
+    from snappy.model.setting import SettingModel
+
+    option = AppSettings.backup_path
+    previous_value = app_settings.get(option)
+    previous_path = snap_settings.backup_path
+    new_folder = tmp_path / "backups"
+    new_folder.mkdir()
+    dashboard = SimpleNamespace(operation_active=False, update=Mock())
+    model = SettingModel(dashboard)
+    updates = []
+    model.backup_path_updated.connect(updates.append)
+
+    def fail_save():
+        assert app_settings.get(option) == str(new_folder)
+        assert snap_settings.backup_path == previous_path
+        raise OSError("Settings.json is not writable")
+
+    monkeypatch.setattr(app_settings, "save", fail_save)
+    with pytest.raises(OSError, match="Settings.json is not writable"):
+        model.set_backup_path(str(new_folder))
+
+    assert app_settings.get(option) == previous_value
+    assert snap_settings.backup_path == previous_path
+    assert updates == []
+    dashboard.update.assert_not_called()

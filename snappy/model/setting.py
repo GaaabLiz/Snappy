@@ -34,7 +34,6 @@ class SettingModel(QObject):
         self.dash_model = dash_model
 
         # Connect AppSettings changes to the synchronization method
-        AppSettings.backup_path.valueChanged.connect(self.sync_snap_settings)
         AppSettings.backup_before_install.valueChanged.connect(self.sync_snap_settings)
         AppSettings.backup_before_edit.valueChanged.connect(self.sync_snap_settings)
         AppSettings.backup_before_delete.valueChanged.connect(self.sync_snap_settings)
@@ -85,10 +84,18 @@ class SettingModel(QObject):
         """
         if self.dash_model.operation_active:
             return False
-        logger.info(f"Backup path changed to: {directory}")
         backup_path = Path(directory)
-        app_settings.set(AppSettings.backup_path, backup_path)
+        option = AppSettings.backup_path
+        previous_path = app_settings.get(option)
+        try:
+            app_settings.set(option, backup_path)
+        except Exception:
+            # QConfig changes the in-memory value before it attempts to save.
+            app_settings.set(option, previous_path, save=False)
+            raise
+
         snap_settings.backup_path = backup_path
+        logger.info(f"Backup path changed to: {directory}")
         log_action(ActionCategory.SETTINGS, ActionType.SETTINGS_BACKUP_PATH_CHANGED, directory)
         self.backup_path_updated.emit(directory)
         self.dash_model.update()
@@ -130,7 +137,6 @@ class SettingModel(QObject):
         """
         Synchronizes snapshot-specific settings with global application settings.
         """
-        snap_settings.backup_path = Path(app_settings.get(AppSettings.backup_path))
         snap_settings.backup_pre_install = app_settings.get(AppSettings.backup_before_install)
         snap_settings.backup_pre_modify = app_settings.get(AppSettings.backup_before_edit)
         snap_settings.backup_pre_delete = app_settings.get(AppSettings.backup_before_delete)

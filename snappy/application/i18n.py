@@ -8,6 +8,7 @@ from snappy.application import app
 _current_language = "en"
 
 _translations: dict[str, dict[str, str]] = {
+    "The backup path could not be saved: {error}": {"it": "Impossibile salvare il percorso dei backup: {error}"},
     "Invalid regular expression: {error}": {"it": "Espressione regolare non valida: {error}"},
     "Search settings": {"it": "Ricerca"},
     "Copy strategy": {"it": "Strategia di copia"},
