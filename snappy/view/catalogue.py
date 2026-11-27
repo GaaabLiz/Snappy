@@ -16,17 +16,13 @@ from snappy.view.util.frame import SnappyQFrame
 from snappy.application.i18n import tr
 
 
-class DeleteAssociatedFoldersDialog(MessageBoxBase):
-    """Show the exact paths to delete in a scrollable confirmation."""
+class AssociatedFoldersDialog(MessageBoxBase):
+    """Show affected paths in a scrollable confirmation."""
 
-    def __init__(self, paths: list[Path], parent=None):
+    def __init__(self, paths: list[Path], title: str, description: str, action: str, parent=None):
         super().__init__(parent)
-        self.viewLayout.addWidget(SubtitleLabel(tr("Delete installed folders"), self))
-        summary = BodyLabel(
-            tr("The following associated folders will be backed up and "
-               "deleted from this computer."),
-            self,
-        )
+        self.viewLayout.addWidget(SubtitleLabel(title, self))
+        summary = BodyLabel(description, self)
         summary.setWordWrap(True)
         self.viewLayout.addWidget(summary)
         self.path_list = PlainTextEdit(self)
@@ -35,11 +31,32 @@ class DeleteAssociatedFoldersDialog(MessageBoxBase):
         self.viewLayout.addWidget(self.path_list)
         self.widget.setMinimumWidth(450)
 
-        self.yesButton.setText(tr("Delete"))
+        self.yesButton.setText(action)
         self.yesButton.setAutoDefault(False)
         self.cancelButton.setText(tr("Cancel"))
         self.cancelButton.setDefault(True)
         self.cancelButton.setFocus()
+
+
+class DeleteAssociatedFoldersDialog(AssociatedFoldersDialog):
+    def __init__(self, paths: list[Path], parent=None):
+        super().__init__(
+            paths,
+            tr("Delete installed folders"),
+            tr("The following associated folders will be backed up and deleted from this computer."),
+            tr("Delete"),
+            parent,
+        )
+
+
+class InstallSnapshotDialog(AssociatedFoldersDialog):
+    def __init__(self, paths: list[Path], clear_destination: bool, parent=None):
+        description = (
+            tr("Replace folders: the snapshot will replace the entire contents of these destinations.")
+            if clear_destination
+            else tr("Merge folders: matching files and folders at the top level will be replaced. Other contents will be kept.")
+        )
+        super().__init__(paths, tr("Install configuration"), description, tr("Install"), parent)
 
 
 class SnapshotCatalogueUiBuilder:

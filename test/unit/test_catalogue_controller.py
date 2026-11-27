@@ -4,7 +4,7 @@ from datetime import timedelta
 from pathlib import Path
 from unittest.mock import Mock
 
-from pylizlib.core.os.snap import Snapshot, SnapshotOperationResult
+from pylizlib.core.os.snap import SnapDirAssociation, Snapshot, SnapshotOperationResult
 
 def test_catalogue_controller(monkeypatch, tmp_path):
     # Mock i18n
@@ -124,6 +124,16 @@ def test_catalogue_controller(monkeypatch, tmp_path):
             delete_confirmations.append(paths)
         def exec(self):
             return FakeMessageBox.res
+    install_confirmations = []
+
+    class FakeInstallSnapshotDialog:
+        def __init__(self, paths, clear_destination, parent=None):
+            install_confirmations.append((paths, clear_destination))
+
+        def exec(self):
+            return FakeMessageBox.res
+
+    view_mod.InstallSnapshotDialog = FakeInstallSnapshotDialog
     view_mod.SnapshotCatalogueWidget = FakeView
     view_mod.DeleteAssociatedFoldersDialog = FakeDeleteAssociatedFoldersDialog
     monkeypatch.setitem(sys.modules, "snappy.view.catalogue", view_mod)
@@ -264,8 +274,11 @@ def test_catalogue_controller(monkeypatch, tmp_path):
     assert catalogue.update_snapshot_with_result.call_args.kwargs["directory_paths"] == ["/source/one"]
     
     # __install_snapshot
+    confirmed_target = tmp_path / "install target"
+    snap.directories = [SnapDirAssociation(0, str(confirmed_target), "folder")]
     prior_actions = len(actions)
     ctrl.view.signal_install_requested.emit(snap)
+    assert install_confirmations[-1] == ([confirmed_target], True)
     catalogue.install_with_result.assert_called_once_with(
         snap, clear_destination=True, progress_callback=task.update_task_progress, message_callback=task.update_task_message,
     )

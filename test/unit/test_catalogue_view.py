@@ -1,4 +1,6 @@
-from snappy.view.catalogue import DeleteAssociatedFoldersDialog, SnapshotCatalogueWidget
+import pytest
+
+from snappy.view.catalogue import DeleteAssociatedFoldersDialog, InstallSnapshotDialog, SnapshotCatalogueWidget
 from pylizlib.core.os.snap import SnapshotSortKey
 
 def test_catalogue_view(qtbot):
@@ -37,3 +39,18 @@ def test_delete_folder_confirmation_shows_every_path_literally(qtbot, tmp_path):
     assert dialog.cancelButton.isDefault()
     
 
+
+
+@pytest.mark.parametrize(("clear_destination", "label"), [(True, "Replace folders"), (False, "Merge folders")])
+def test_install_confirmation_shows_paths_and_mode(qtbot, tmp_path, clear_destination, label):
+    from PySide6.QtWidgets import QWidget
+
+    parent = QWidget()
+    qtbot.addWidget(parent)
+    paths = [tmp_path / "Config <b>", tmp_path / "Missing folder"]
+    dialog = InstallSnapshotDialog(paths, clear_destination, parent)
+    qtbot.addWidget(dialog)
+
+    assert dialog.path_list.toPlainText().splitlines() == [str(path) for path in paths]
+    assert dialog.viewLayout.itemAt(1).widget().text().startswith(label)
+    assert dialog.cancelButton.isDefault()
