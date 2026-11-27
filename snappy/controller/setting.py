@@ -158,7 +158,14 @@ class SettingController:
         """
         directory = QFileDialog.getExistingDirectory(None, tr("Select the backup folder"))
         if directory:
-            self.model.set_backup_path(directory)
+            try:
+                self.model.set_backup_path(directory)
+            except Exception as error:
+                MessageBox(
+                    tr("Error"),
+                    tr("The backup path could not be saved: {error}", error=str(error)),
+                    parent=self.view,
+                ).exec_()
 
     def __open_directory(self):
         """
