@@ -215,9 +215,6 @@ _translations: dict[str, dict[str, str]] = {
     'Compare the backup with the local folders before permanently deleting them.': {
         'it': 'Confronta il backup con le cartelle locali prima di eliminarle definitivamente.'
     },
-    'Backup verification requires a newer version of pylizlib.': {
-        'it': 'La verifica del backup richiede una versione più recente di pylizlib.'
-    },
     'The local folders differ from the backup. Deletion was cancelled and the folders were restored. {error}': {
         'it': 'Le cartelle locali differiscono dal backup. L’eliminazione è stata annullata e le cartelle sono state ripristinate. {error}'
     },
@@ -227,11 +224,6 @@ _translations: dict[str, dict[str, str]] = {
     'No associated folders exist on this computer.': {'it': 'Nessuna cartella associata è presente su questo computer.'},
     'The catalogue changed. Review the folder list and try again.': {'it': 'Il catalogo è cambiato. Controlla l’elenco delle cartelle e riprova.'},
     'The associated folders changed. Review the list and try again.': {'it': 'Le cartelle associate sono cambiate. Controlla l’elenco e riprova.'},
-    'The associated path {path} must point to a local folder.': {'it': 'Il percorso associato {path} deve indicare una cartella locale.'},
-    'Set a backup folder before deleting associated folders.': {'it': 'Imposta una cartella di backup prima di eliminare le cartelle associate.'},
-    'Could not delete {path}. The backup is saved at {archive}. {error}': {
-        'it': 'Impossibile eliminare {path}. Il backup è stato salvato in {archive}. {error}'
-    },
     'Update associated folders': {'it': 'Aggiorna cartelle associate'},
     'Are you sure you want to update the associated folders of the selected snapshot with the currently installed ones?': {'it': 'Sei sicuro di voler aggiornare le cartelle associate allo snapshot selezionato con quelle attualmente installate nel sistema ?'},
     'Update error': {'it': 'Errore di aggiornamento'},
