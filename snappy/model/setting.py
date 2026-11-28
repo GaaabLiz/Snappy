@@ -2,7 +2,6 @@ from pathlib import Path
 
 from PySide6.QtCore import QObject, Signal
 from loguru import logger
-from pylizlib.core.os.snap.domain import BackupType
 
 from snappy.application.app import app_settings, AppSettings, snap_settings
 from snappy.application.i18n import tr
@@ -104,35 +103,11 @@ class SettingModel(QObject):
         self.backup_path_updated.emit(directory)
         self.dash_model.update()
 
-    def clear_backup_directory(self, progress_callback=None, message_callback=None) -> int:
-        """
-        Deletes all application-managed backups from the configured backup directory.
-        Preserves other unmanaged files and reports progress through optional callbacks.
-        """
-        backup_path = Path(app_settings.get(AppSettings.backup_path))
-        deleted_count = 0
-
-        if backup_path.exists():
-            if not backup_path.is_dir():
-                raise ValueError(f"Configured backup path '{backup_path}' is not a directory.")
-
-            managed_types = (
-                BackupType.ASSOCIATED_DIRECTORIES,
-                BackupType.SNAPSHOT_DIRECTORY,
-            )
-            backups = [
-                backup for backup in self.dash_model.snap_catalogue.list_backups(backup_path)
-                if not backup.is_export and backup.backup_type in managed_types
-            ]
-            total = len(backups)
-            for index, backup in enumerate(backups, start=1):
-                if message_callback:
-                    message_callback(backup.file_name)
-                self.dash_model.snap_catalogue.delete_backup(backup.path)
-                deleted_count += 1
-                if progress_callback:
-                    progress_callback(int(index / total * 100))
-
+    def clear_backup_directory(self) -> int:
+        """Remove managed backups through the catalogue operation."""
+        catalogue = self.dash_model.snap_catalogue
+        backup_path = catalogue.settings.backup_path
+        deleted_count = catalogue.clear_managed_backups()
         logger.info("Backup directory cleanup completed: {} file(s) deleted from {}", deleted_count, backup_path)
         log_action(ActionCategory.SETTINGS, ActionType.SETTINGS_BACKUP_CLEANED, f"path={backup_path}; deleted={deleted_count}")
         return deleted_count

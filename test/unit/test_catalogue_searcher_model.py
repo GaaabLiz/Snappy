@@ -48,10 +48,11 @@ def _import_searcher_module(monkeypatch):
     class FakeTask:
         def __init__(self, name):
             self.name = name
+            self.is_cancelled = False
             class FakeSignal:
                 def emit(self, *args): pass
             self.task_update_message = FakeSignal()
-        def gen_update_task_progress(self, c, t): pass
+        def update_task_progress(self, progress): pass
     class FakeOperation:
         def __init__(self, tasks, info):
             self.tasks = tasks

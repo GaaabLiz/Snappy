@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from loguru import logger
-from pylizlib.core.os.snap import BackupType, Snapshot, SnapshotBackupInfo, SnapshotCatalogue, SnapshotCatalogueStatistics
+from pylizlib.core.os.snap import Snapshot, SnapshotBackupInfo, SnapshotCatalogue, SnapshotCatalogueStatistics
 from pylizlib.core.os.commands import is_software_installed
 from pylizlib.core.os.windows.processes import WindowsOsUtils
 from pylizlib.qt.handler.operation_core import Task
@@ -10,6 +10,7 @@ from qfluentwidgets import FluentIcon
 
 from snappy.application.app import app_settings, AppSettings
 from snappy.application.i18n import tr
+from snappy.model.operation import CatalogueTask
 
 
 class TaskGetMonitoredSoftware(Task):
@@ -57,7 +58,7 @@ class TaskGetMonitoredSoftware(Task):
         return data_objs
 
 
-class TaskGetSnapshots(Task):
+class TaskGetSnapshots(CatalogueTask):
     """
     Task to retrieve all saved snapshots from the catalogue.
     """
@@ -69,51 +70,16 @@ class TaskGetSnapshots(Task):
         Args:
             catalogue (SnapshotCatalogue): The snapshot catalogue instance to query.
         """
-        super().__init__(tr("Retrieving saved snapshots"))
+        super().__init__(tr("Retrieving saved snapshots"), self._load_overview)
         self.catalogue = catalogue
         self.home_statistics: SnapshotCatalogueStatistics | None = None
         self.backup_count: int | None = None
         self.backups: list[SnapshotBackupInfo] | None = None
 
-    def execute(self) -> list[Snapshot]:
-        """
-        Executes the task to fetch all snapshots.
-
-        Returns:
-            list[Snapshot]: A list of all available snapshots in the catalogue.
-        """
-        logger.debug("Fetching saved snapshots...")
-        self.home_statistics = None
-        self.backup_count = None
-        self.backups = None
-        snapshots = self.catalogue.get_all()
-        try:
-            self.home_statistics = self.catalogue.get_statistics(include_backups=False, snapshots=snapshots)
-        except Exception as error:
-            logger.warning(f"Cannot calculate catalogue statistics: {error}")
-
-        self.backups = self._list_backups()
-        if self.backups is not None:
-            self.backup_count = sum(
-                1
-                for backup in self.backups
-                if not backup.is_export
-                and backup.backup_type in (BackupType.ASSOCIATED_DIRECTORIES, BackupType.SNAPSHOT_DIRECTORY)
-                and backup.created_at is not None
-                and bool(backup.snapshot_id)
-            )
-        return snapshots
-
-    def _list_backups(self) -> list[SnapshotBackupInfo] | None:
-        """Read the backup list once for the dashboard and the backup view."""
-        backup_path = self.catalogue.settings.backup_path
-        if backup_path is None:
-            return []
-        try:
-            backup_path.stat()
-            return self.catalogue.list_backups(backup_path)
-        except FileNotFoundError:
-            return []
-        except Exception as error:
-            logger.warning(f"Cannot list backups in '{backup_path}': {error}")
-            return None
+    def _load_overview(self) -> list[Snapshot]:
+        """Read one coherent catalogue view for all dashboard pages."""
+        view = self.catalogue.get_overview()
+        self.home_statistics = view.statistics
+        self.backups = view.backups
+        self.backup_count = view.backup_count
+        return view.snapshots

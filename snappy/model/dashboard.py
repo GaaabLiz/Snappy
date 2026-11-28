@@ -1,14 +1,16 @@
+from collections.abc import Callable
 from pathlib import Path
 
 from loguru import logger
 from pylizlib.core.os.snap import SnapshotCatalogue
-from pylizlib.qt.handler.operation_core import Operation, GenericTask
+from pylizlib.qt.handler.operation_core import Operation
 from pylizlib.qt.handler.operation_domain import OperationInfo
 from pylizlib.qt.handler.operation_runner import OperationRunner, RunnerStatistics
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QObject, Signal, Slot
 
 from snappy.application.app import app_settings, AppSettings, snap_settings
 from snappy.domain.data import SnappyData
+from snappy.model.operation import CatalogueTask
 from snappy.model.snappy_update import TaskGetMonitoredSoftware, TaskGetSnapshots
 from snappy.application.i18n import tr
 
@@ -28,6 +30,8 @@ class DashboardModel(QObject):
     signal_on_update_progress = Signal(int)
     signal_on_update_text = Signal(str)
     signal_on_update_detail_text = Signal(str)
+    signal_on_operation_update = Signal(object)
+    _worker_operation_update = Signal(object)
     signal_on_updated_data_available = Signal(SnappyData)
     signal_on_catalogue_invalidated = Signal()
     signal_on_heavy_operation_success = Signal(str, str)
@@ -50,6 +54,9 @@ class DashboardModel(QObject):
         )
         self.task_monitored_soft = TaskGetMonitoredSoftware()
         self.task_snap = TaskGetSnapshots(self.snap_catalogue)
+        self._worker_operation_update.connect(self._forward_operation_update)
+        self.task_snap.on_update = self._worker_operation_update.emit
+        self._active_task: CatalogueTask | None = None
         self.operation_info = OperationInfo(
             name=tr("Dashboard Update"),
             description=tr("Dashboard data update"),
@@ -60,17 +67,13 @@ class DashboardModel(QObject):
         self.runner.runner_start.connect(self.on_runner_started)
         self.runner.runner_stop.connect(self.on_runner_stopped)
         self.runner.runner_finish.connect(self.on_runner_finished)
-        self.runner.runner_update_progress.connect(self.signal_on_update_progress.emit)
-
-        self.runner.task_update_message.connect(lambda task_name, msg: self.signal_on_update_detail_text.emit(msg))
-
         self._heavy_runners = []
 
     def run_heavy_operation(
         self,
         op_name: str,
         op_desc: str,
-        func: callable,
+        func: Callable,
         success_msg_title: str = "",
         success_msg: str = "",
         update_dashboard: bool = True,
@@ -78,6 +81,7 @@ class DashboardModel(QObject):
         error_msg_template: str = "",
         *,
         show_result_message: bool = False,
+        on_result: Callable | None = None,
     ):
         """
         Executes a potentially time-consuming heavy operation asynchronously.
@@ -92,6 +96,7 @@ class DashboardModel(QObject):
             error_msg_title (str, optional): The title to use for a failed operation. Defaults to "Error".
             error_msg_template (str, optional): An optional translated error message with an {error} placeholder.
             show_result_message (bool): Use the task's returned (title, message) for completion feedback.
+            on_result (Callable | None): Receive the result on the GUI thread after the worker is released.
         """
         if self.operation_active:
             self.signal_on_update_already_running.emit()
@@ -103,7 +108,7 @@ class DashboardModel(QObject):
             )
             return False
 
-        task = GenericTask(op_name, func)
+        task = CatalogueTask(op_name, func, self._worker_operation_update.emit)
         op_info = OperationInfo(name=op_name, description=op_desc)
         op = Operation([task], op_info)
 
@@ -114,7 +119,10 @@ class DashboardModel(QObject):
             if runner in self._heavy_runners:
                 self._heavy_runners.remove(runner)
 
-            if stats.has_ops_failed():
+            self._active_task = None
+            cancelled = getattr(stats, "cancelled_operations", 0)
+            failed = stats.has_ops_failed()
+            if failed:
                 error = stats.get_first_error()
                 logger.error(f"Error during {op_name}: {error}")
                 error_title = error_msg_title or tr("Error")
@@ -124,29 +132,22 @@ class DashboardModel(QObject):
                     else tr("An error occurred: {error}", error=str(error))
                 )
                 self.signal_on_heavy_operation_error.emit(error_title, error_message)
-                if update_dashboard:
-                    self.operation_active = False
-                    self.update()
-                else:
-                    self.operation_active = False
-                    self.signal_on_update_complete.emit()
-            else:
+            elif not cancelled:
                 if show_result_message and task.result is not None:
                     self.signal_on_heavy_operation_success.emit(*task.result)
                 elif success_msg_title and success_msg:
                     self.signal_on_heavy_operation_success.emit(success_msg_title, success_msg)
-                if update_dashboard:
-                    # No signals or UI unlock between the operation and its refresh.
-                    self.operation_active = False
-                    self.update()
-                else:
-                    self.operation_active = False
-                    self.signal_on_update_complete.emit()
+
+            self.operation_active = False
+            if update_dashboard and not cancelled:
+                self.update()
+            else:
+                self.signal_on_update_complete.emit()
+            if not (cancelled or failed) and on_result is not None:
+                on_result(task.result)
 
         runner.runner_finish.connect(on_finish)
-        runner.runner_update_progress.connect(self.signal_on_update_progress.emit)
-        runner.task_update_message.connect(lambda task_name, msg: self.signal_on_update_detail_text.emit(msg))
-
+        self._active_task = task
         self.operation_active = True
         self.signal_on_update_started.emit()
         self.signal_on_update_text.emit(op_desc)
@@ -168,10 +169,20 @@ class DashboardModel(QObject):
                 else tr("An error occurred: {error}", error=str(e))
             )
             self.signal_on_heavy_operation_error.emit(error_title, error_message)
+            self._active_task = None
             self.operation_active = False
             self.signal_on_update_complete.emit()
             return False
 
+    @Slot(object)
+    def _forward_operation_update(self, update):
+        """Deliver worker feedback on the GUI thread."""
+        self.signal_on_operation_update.emit(update)
+
+    def cancel_catalogue_wait(self):
+        """Cancel the current worker if the library is still waiting for access."""
+        if self._active_task is not None:
+            self._active_task.request_cancellation()
 
     def get_cached_data(self) -> SnappyData | None:
         """
@@ -203,6 +214,8 @@ class DashboardModel(QObject):
         self.operation_active = True
         try:
             # Executable monitoring remains implemented but is intentionally inactive.
+            self.task_snap.prepare()
+            self._active_task = self.task_snap
             tasks = [self.task_snap]
             self.runner.clear()
             op = Operation(tasks, self.operation_info)
@@ -211,6 +224,7 @@ class DashboardModel(QObject):
             return True
 
         except Exception as e:
+            self._active_task = None
             self.operation_active = False
             self.signal_on_update_complete.emit()
             logger.error(f"Error launching update: {e}")
@@ -279,6 +293,7 @@ class DashboardModel(QObject):
             error_to_report = error
             logger.error(f"Error processing dashboard update: {error}")
         finally:
+            self._active_task = None
             self.operation_active = False
             self.signal_on_update_complete.emit()
             if error_to_report is not None:

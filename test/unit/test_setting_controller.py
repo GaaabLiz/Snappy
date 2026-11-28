@@ -1,3 +1,4 @@
+import inspect
 import sys
 import types
 from pathlib import Path
@@ -169,7 +170,20 @@ def test_setting_controller(monkeypatch, tmp_path):
                     backup_type=None,
                 ),
             ]
+        @property
+        def settings(self):
+            return app_mod.snap_settings
+
         def set_catalogue_path(self, p): pass
+
+        def clear_managed_backups(self):
+            path = self.settings.backup_path
+            if not path.exists():
+                return 0
+            self.list_backups(path)
+            self.delete_backup(managed_backup)
+            return 1
+
         def list_backups(self, path):
             self.list_calls.append(path)
             if self.list_error:
@@ -204,7 +218,7 @@ def test_setting_controller(monkeypatch, tmp_path):
         def run_next_operation(self):
             action, options = self.pending.pop(0)
             try:
-                action(FakeTask())
+                action(FakeTask()) if inspect.signature(action).parameters else action()
             except Exception as error:
                 msgs.append(options["error_msg_template"].format(error=str(error)))
             finally:
@@ -331,6 +345,7 @@ def test_setting_controller(monkeypatch, tmp_path):
     dash.snap_catalogue.list_error = None
     missing_dir = tmp_path / "missing-backups"
     settings.values["b"] = missing_dir
+    app_mod.snap_settings.backup_path = missing_dir
     list_calls_before_missing = len(dash.snap_catalogue.list_calls)
     ctrl.view.signal_clear_backups_request.emit()
     dash.run_next_operation()

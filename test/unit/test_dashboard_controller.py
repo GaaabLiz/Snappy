@@ -23,6 +23,8 @@ def _import_dashboard_module(monkeypatch):
             self.states = []
             self.progress = []
             self.text = []
+            self.wait_enabled = False
+            self.update_cancel_requested = FakeSignal()
 
         def isVisible(self):
             return False
@@ -35,6 +37,12 @@ def _import_dashboard_module(monkeypatch):
             
         def set_updating_text(self, t):
             self.text.append(t)
+
+        def set_updating_detail_text(self, text):
+            self.detail = text
+
+        def set_wait_cancel_enabled(self, enabled):
+            self.wait_enabled = enabled
 
     class FakeStackedWidget:
         def __init__(self):
@@ -124,10 +132,15 @@ def _import_dashboard_module(monkeypatch):
             self.signal_on_update_progress = FakeSignal()
             self.signal_on_update_text = FakeSignal()
             self.signal_on_update_detail_text = FakeSignal()
+            self.signal_on_operation_update = FakeSignal()
+            self.cancel_count = 0
             self.signal_on_heavy_operation_success = FakeSignal()
             self.signal_on_heavy_operation_error = FakeSignal()
             self.snap_catalogue = types.SimpleNamespace(path_catalogue=None)
             self.update_count = 0
+
+        def cancel_catalogue_wait(self):
+            self.cancel_count += 1
 
         def update(self):
             self.update_count += 1

@@ -191,16 +191,10 @@ class SettingController:
         if not w.exec_():
             return
 
-        def action(task):
-            self.model.clear_backup_directory(
-                progress_callback=task.update_task_progress,
-                message_callback=task.update_task_message,
-            )
-
         self.dash_model.run_heavy_operation(
             tr("Clean backups"),
             tr("Cleaning backup folder"),
-            action,
+            self.model.clear_backup_directory,
             success_msg_title=tr("Backups cleaned"),
             success_msg=tr("All application-managed backups were deleted successfully."),
             error_msg_title=tr("Error"),

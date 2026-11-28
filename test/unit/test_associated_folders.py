@@ -5,6 +5,7 @@ from unittest.mock import Mock
 
 import pytest
 from pylizlib.core.os.snap import SnapshotBusyError, SnapshotCatalogue, SnapshotSettings
+from pylizlib.core.os.snap.operations.install import SnapshotInstaller
 from pylizlib.core.os.snap.storage.install_registry import InstalledCopyRegistry
 
 from snappy.model import associated_folders
@@ -137,7 +138,8 @@ def test_delete_passes_backup_verification_preference_to_pyliz(workspace, monkey
         message_callback=message_callback,
     ) == archive
     remove_paths.assert_called_once_with(
-        "sample", expected_paths=[directory], verify_backup=verify_backup, message_callback=message_callback,
+        "sample", expected_catalogue_path=catalogue.path_catalogue, expected_paths=[directory],
+        verify_backup=verify_backup, message_callback=message_callback,
     )
 
 
@@ -186,7 +188,7 @@ def test_confirmed_install_keeps_lock_between_verification_and_install(workspace
     extra.touch()
     monkeypatch.setattr(associated_folders.app_settings, "get", lambda _: mode)
     confirmed = get_installation_plan(catalogue, snapshot.id)
-    install = catalogue.install_with_result
+    install = SnapshotInstaller.install
 
     with ThreadPoolExecutor(max_workers=1) as executor:
         def install_while_recheck_lock_is_held(*args, **kwargs):
@@ -194,7 +196,7 @@ def test_confirmed_install_keeps_lock_between_verification_and_install(workspace
                 executor.submit(other.update_snapshot, snapshot.id, name="Changed").result(timeout=5)
             return install(*args, **kwargs)
 
-        monkeypatch.setattr(catalogue, "install_with_result", install_while_recheck_lock_is_held)
+        monkeypatch.setattr(SnapshotInstaller, "install", install_while_recheck_lock_is_held)
         install_confirmed_snapshot(catalogue, confirmed)
 
     assert extra.exists() is (not mode)
