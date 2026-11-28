@@ -225,6 +225,15 @@ _translations: dict[str, dict[str, str]] = {
     'No associated folders exist on this computer.': {'it': 'Nessuna cartella associata è presente su questo computer.'},
     'The catalogue changed. Review the folder list and try again.': {'it': 'Il catalogo è cambiato. Controlla l’elenco delle cartelle e riprova.'},
     'The associated folders changed. Review the list and try again.': {'it': 'Le cartelle associate sono cambiate. Controlla l’elenco e riprova.'},
+    'The snapshot will be updated with the current contents of these local folders.': {
+        'it': 'Lo snapshot verrà aggiornato con il contenuto corrente di queste cartelle locali.'
+    },
+    'The marked local folders are empty. Continuing will erase the contents of their stored copies. Check that their volumes are connected.': {
+        'it': 'Le cartelle locali contrassegnate sono vuote. Continuando cancellerai il contenuto delle relative copie archiviate. Verifica che i volumi siano collegati.'
+    },
+    '{path} (will empty the stored copy)': {'it': '{path} (svuoterà la copia archiviata)'},
+    'Update': {'it': 'Aggiorna'},
+    'Update anyway': {'it': 'Aggiorna comunque'},
     'Update associated folders': {'it': 'Aggiorna cartelle associate'},
     'Are you sure you want to update the associated folders of the selected snapshot with the currently installed ones?': {'it': 'Sei sicuro di voler aggiornare le cartelle associate allo snapshot selezionato con quelle attualmente installate nel sistema ?'},
     'Update error': {'it': 'Errore di aggiornamento'},
