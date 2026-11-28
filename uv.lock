@@ -822,7 +822,7 @@ wheels = [
 
 [[package]]
 name = "pylizlib"
-version = "1.0.5"
+version = "1.0.6"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "psutil" },
@@ -834,9 +834,9 @@ dependencies = [
     { name = "rich" },
     { name = "typer" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/00/53/65573d36c3aeb1ae3ba8b0c699b8733bef9effff608fb604f594b8b7d6f5/pylizlib-1.0.5.tar.gz", hash = "sha256:cac3a69f83da91e6bda654f5a44729911dd53331f9b9e0a814717f70e6a0748e", size = 263620, upload-time = "2026-11-27T12:36:51.038Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a9/6b/6439c43ac6cb96a2d5ac62adfb6ea3d0406822fa652c6a8bb699dd6c0331/pylizlib-1.0.6.tar.gz", hash = "sha256:d003bb574c76e5a7615c11ec458ac9320cea64e38cc9b47b7cc547384d389ece", size = 269484, upload-time = "2026-11-28T15:33:07.34Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/c8/b1/85785f5f89b0061c9c9aec3b5c8c4be26612203607f177fc51b6cdb8c296/pylizlib-1.0.5-py3-none-any.whl", hash = "sha256:2fc3d9945abb2c67c1f3aeb4915188cc4062a600189eca2c2671725191e7a19d", size = 346332, upload-time = "2026-11-27T12:36:49.552Z" },
+    { url = "https://files.pythonhosted.org/packages/8e/59/c712518225f06cfdd3db021c72e4d2e183aca103a888847df3e8912831e0/pylizlib-1.0.6-py3-none-any.whl", hash = "sha256:8d4b97c25083cf4ae2605b3ce9078b4d8c456e3b005f0f659a5ab3c2d29f222b", size = 353306, upload-time = "2026-11-28T15:33:05.687Z" },
 ]
 
 [package.optional-dependencies]
@@ -4195,8 +4195,8 @@ dev = [
 requires-dist = [
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "loguru-logging-intercept", specifier = ">=0.1.5" },
-    { name = "pylizlib", specifier = ">=1.0.5" },
-    { name = "pylizlib", extras = ["qtfw"], marker = "extra == 'qtfw'", specifier = ">=1.0.5" },
+    { name = "pylizlib", specifier = ">=1.0.6" },
+    { name = "pylizlib", extras = ["qtfw"], marker = "extra == 'qtfw'", specifier = ">=1.0.6" },
     { name = "pyside6", specifier = ">=6.11.0" },
     { name = "pyside6-fluent-widgets", extras = ["full"], specifier = ">=1.11.2" },
 ]
