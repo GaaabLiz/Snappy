@@ -21,7 +21,7 @@ from snappy.model.associated_folders import (
 )
 from snappy.model.catalogue import CatalogueModel
 from snappy.model.dashboard import DashboardModel
-from snappy.view.catalogue import DeleteAssociatedFoldersDialog, InstallSnapshotDialog, SnapshotCatalogueWidget
+from snappy.view.catalogue import DeleteAssociatedFoldersDialog, InstallSnapshotDialog, SnapshotCatalogueWidget, UpdateSnapshotDialog
 from snappy.view.catalogue_imp_dialog import DialogConfig
 from snappy.application.i18n import tr
 
@@ -496,10 +496,14 @@ class CatalogueController:
         """
         logger.debug(f"Associated folders update requested for {snap.name}")
         try:
-            w = MessageBox(tr("Update associated folders"), tr("Are you sure you want to update the associated folders of the selected snapshot with the currently installed ones?"), parent=self.view)
-            if w.exec_():
+            catalogue = self.dash_model.snap_catalogue
+            plan = catalogue.get_sync_plan(snap.id)
+            dialog = UpdateSnapshotDialog(plan.paths, plan.emptying_paths, parent=self.view)
+            if dialog.exec():
                 def action(task):
-                    result = self.dash_model.snap_catalogue.sync_with_result(snap.id, message_callback=task.update_task_message)
+                    result = catalogue.sync_with_result(
+                        snap.id, expected_plan=plan, message_callback=task.update_task_message,
+                    )
                     logger.info(f"Associated folders update for {snap.name} completed.")
                     self.__log_automatic_backup(snap, result.backup_path, "update with local")
                     log_action(ActionCategory.CATALOGUE, ActionType.CATALOGUE_ASSOCIATED_FOLDERS_UPDATED, snap.name)

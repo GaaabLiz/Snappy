@@ -1,6 +1,6 @@
 import pytest
 
-from snappy.view.catalogue import DeleteAssociatedFoldersDialog, InstallSnapshotDialog, SnapshotCatalogueWidget
+from snappy.view.catalogue import DeleteAssociatedFoldersDialog, InstallSnapshotDialog, SnapshotCatalogueWidget, UpdateSnapshotDialog
 from pylizlib.core.os.snap import SnapshotSortKey
 
 def test_catalogue_view(qtbot):
@@ -53,4 +53,23 @@ def test_install_confirmation_shows_paths_and_mode(qtbot, tmp_path, clear_destin
 
     assert dialog.path_list.toPlainText().splitlines() == [str(path) for path in paths]
     assert dialog.viewLayout.itemAt(1).widget().text().startswith(label)
+    assert dialog.cancelButton.isDefault()
+
+
+def test_update_confirmation_marks_folders_that_will_be_emptied(qtbot, tmp_path):
+    from PySide6.QtWidgets import QWidget
+
+    parent = QWidget()
+    qtbot.addWidget(parent)
+    populated = tmp_path / "populated"
+    empty = tmp_path / "empty mount point"
+    dialog = UpdateSnapshotDialog([populated, empty], [empty], parent)
+    qtbot.addWidget(dialog)
+
+    assert dialog.path_list.toPlainText().splitlines() == [
+        str(populated),
+        f"{empty} (will empty the stored copy)",
+    ]
+    assert "erase the contents" in dialog.viewLayout.itemAt(1).widget().text()
+    assert dialog.yesButton.text() == "Update anyway"
     assert dialog.cancelButton.isDefault()

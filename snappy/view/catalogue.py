@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from pathlib import Path
 
 from PySide6.QtCore import Signal, Qt, QMargins, QModelIndex
@@ -19,7 +20,7 @@ from snappy.application.i18n import tr
 class AssociatedFoldersDialog(MessageBoxBase):
     """Show affected paths in a scrollable confirmation."""
 
-    def __init__(self, paths: list[Path], title: str, description: str, action: str, parent=None):
+    def __init__(self, paths: Sequence[Path | str], title: str, description: str, action: str, parent=None):
         super().__init__(parent)
         self.viewLayout.addWidget(SubtitleLabel(title, self))
         summary = BodyLabel(description, self)
@@ -57,6 +58,21 @@ class InstallSnapshotDialog(AssociatedFoldersDialog):
             else tr("Merge folders: matching files and folders at the top level will be replaced. Other contents will be kept.")
         )
         super().__init__(paths, tr("Install configuration"), description, tr("Install"), parent)
+
+
+class UpdateSnapshotDialog(AssociatedFoldersDialog):
+    """Show which empty local folders will empty their stored copies."""
+
+    def __init__(self, paths: Sequence[Path], emptying_paths: Sequence[Path], parent=None):
+        description = tr("The snapshot will be updated with the current contents of these local folders.")
+        action = tr("Update")
+        if emptying_paths:
+            description = tr("The marked local folders are empty. Continuing will erase the contents of their stored copies. Check that their volumes are connected.")
+            action = tr("Update anyway")
+
+        affected = set(emptying_paths)
+        labels = [tr("{path} (will empty the stored copy)", path=path) if path in affected else str(path) for path in paths]
+        super().__init__(labels, tr("Update associated folders"), description, action, parent)
 
 
 class SnapshotCatalogueUiBuilder:

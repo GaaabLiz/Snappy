@@ -133,6 +133,16 @@ def test_catalogue_controller(monkeypatch, tmp_path):
         def exec(self):
             return FakeMessageBox.res
 
+    update_confirmations = []
+
+    class FakeUpdateSnapshotDialog:
+        def __init__(self, paths, emptying_paths, parent=None):
+            update_confirmations.append((paths, emptying_paths))
+
+        def exec(self):
+            return FakeMessageBox.res
+
+    view_mod.UpdateSnapshotDialog = FakeUpdateSnapshotDialog
     view_mod.InstallSnapshotDialog = FakeInstallSnapshotDialog
     view_mod.SnapshotCatalogueWidget = FakeView
     view_mod.DeleteAssociatedFoldersDialog = FakeDeleteAssociatedFoldersDialog
@@ -169,6 +179,7 @@ def test_catalogue_controller(monkeypatch, tmp_path):
             self.delete_with_result = Mock(return_value=SnapshotOperationResult(Path("/backups/delete.zip")))
             self.export_assoc_dirs = Mock()
             self.export_captured_assoc_dirs = Mock()
+            self.get_sync_plan = Mock()
             self.sync_with_result = Mock(return_value=SnapshotOperationResult(Path("/backups/sync.zip")))
         def get_snap_directory_path(self, s): return Path("/snap/dir")
         def duplicate_by_id(self, id, progress_callback=None, message_callback=None): pass
@@ -369,9 +380,24 @@ def test_catalogue_controller(monkeypatch, tmp_path):
     assert remove_associated_folders.call_count == 1
     list_associated_folders.return_value = folder_paths
     
-    # __update_assoc_dirs_from_installed
+    # Missing local paths stop the update before the confirmation.
+    catalogue.get_sync_plan.side_effect = FileNotFoundError("Original path does not exist")
     ctrl.view.signal_update_with_local_dirs_requested.emit(snap)
-    catalogue.sync_with_result.assert_called_once_with("s1", message_callback=task.update_task_message)
+    assert "does not exist" in msgs[-1]
+    assert not update_confirmations
+    catalogue.sync_with_result.assert_not_called()
+
+    plan = types.SimpleNamespace(paths=tuple(folder_paths), emptying_paths=(folder_paths[0],))
+    catalogue.get_sync_plan.side_effect = None
+    catalogue.get_sync_plan.return_value = plan
+    FakeMessageBox.res = False
+    ctrl.view.signal_update_with_local_dirs_requested.emit(snap)
+    assert update_confirmations[-1] == (plan.paths, plan.emptying_paths)
+    catalogue.sync_with_result.assert_not_called()
+
+    FakeMessageBox.res = True
+    ctrl.view.signal_update_with_local_dirs_requested.emit(snap)
+    catalogue.sync_with_result.assert_called_once_with("s1", expected_plan=plan, message_callback=task.update_task_message)
     assert actions[-1][1] == ActionType.CATALOGUE_ASSOCIATED_FOLDERS_UPDATED
     automatic_backups = {
         (action_type, details)
