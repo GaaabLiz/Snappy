@@ -1,7 +1,16 @@
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QFrame, QWidget, QVBoxLayout
 from pylizlib.qt.domain.view import UiWidgetMode
-from qfluentwidgets import SubtitleLabel, setFont, SingleDirectionScrollArea, ProgressBar, BodyLabel, CaptionLabel
+from qfluentwidgets import (
+    BodyLabel,
+    CaptionLabel,
+    IndeterminateProgressBar,
+    ProgressBar,
+    PushButton,
+    SingleDirectionScrollArea,
+    SubtitleLabel,
+    setFont,
+)
 
 from snappy.application.i18n import tr
 
@@ -69,6 +78,8 @@ class SnappyQFrame(QFrame):
     Base frame widget for Snappy views, providing standard layout, scrolling, and update state handling.
     """
 
+    update_cancel_requested = Signal()
+
     def __init__(self, name: str, parent=None, subtitle: str = ""):
         """
         Initialize the SnappyQFrame.
@@ -94,13 +105,20 @@ class SnappyQFrame(QFrame):
         updating_layout.setContentsMargins(0, 0, 0, 0)
         
         self.__det_prog_bar = self.__builder.get_updating_progress_bar()
+        self.__indeterminate_bar = IndeterminateProgressBar(self, start=False)
+        self.__indeterminate_bar.hide()
+        self.__cancel_button = PushButton(tr("Cancel wait"), self)
+        self.__cancel_button.clicked.connect(self.update_cancel_requested.emit)
+        self.__cancel_button.hide()
         self.__upd_label = self.__builder.get_label_updating()
         self.__upd_detail_label = self.__builder.get_label_updating_details()
         
         updating_layout.addWidget(self.__det_prog_bar)
+        updating_layout.addWidget(self.__indeterminate_bar)
         updating_layout.addStretch()
         updating_layout.addWidget(self.__upd_label)
         updating_layout.addWidget(self.__upd_detail_label)
+        updating_layout.addWidget(self.__cancel_button, alignment=Qt.AlignmentFlag.AlignHCenter)
         updating_layout.addStretch()
         self._top_level_layout.addWidget(self.__updating_widget)
 
@@ -149,6 +167,9 @@ class SnappyQFrame(QFrame):
             self.__updating_widget.show()
             self.__main_content_widget.hide()
         elif mode == UiWidgetMode.DISPLAYING:
+            self.__indeterminate_bar.stop()
+            self.__indeterminate_bar.hide()
+            self.set_wait_cancel_enabled(False)
             self.__updating_widget.hide()
             self.__main_content_widget.show()
 
@@ -166,14 +187,22 @@ class SnappyQFrame(QFrame):
             subtitle_label.setTextColor("#606060", "#c5c5c5")
             self.master_layout.addWidget(subtitle_label)
         
-    def set_updating_progress(self, progress: int):
-        """
-        Update the progress bar value.
+    def set_updating_progress(self, progress: int | None):
+        """Show phase progress, or animate while there is no measurable percentage."""
+        self.__det_prog_bar.setVisible(progress is not None)
+        if progress is None:
+            if self.__indeterminate_bar.isHidden():
+                self.__indeterminate_bar.start()
+                self.__indeterminate_bar.show()
+        else:
+            self.__indeterminate_bar.stop()
+            self.__indeterminate_bar.hide()
+            self.__det_prog_bar.setValue(progress)
 
-        :param progress: The progress percentage (0-100).
-        """
-        self.__det_prog_bar.setValue(progress)
-        
+    def set_wait_cancel_enabled(self, enabled: bool):
+        """Show the cancel action while the worker is waiting."""
+        self.__cancel_button.setVisible(enabled)
+
     def set_updating_text(self, text: str):
         """
         Update the main text shown during the updating state.

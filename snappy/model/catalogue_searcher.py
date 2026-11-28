@@ -6,14 +6,26 @@ from PySide6.QtCore import QAbstractTableModel, Qt, QModelIndex, Signal, QObject
 from PySide6.QtGui import QStandardItemModel, QStandardItem
 
 from loguru import logger
-from pylizlib.core.os.snap import SnapshotCatalogue, Snapshot, SnapshotSearchParams, QueryType, SearchTarget, SnapshotSearcher, \
-    SnapshotSearchReport, SnapshotSearchResult
+from pylizlib.core.os.snap import (
+    QueryType,
+    SearchTarget,
+    Snapshot,
+    SnapshotCatalogue,
+    SnapshotOperationCancelled,
+    SnapshotOperationUpdate,
+    SnapshotSearcher,
+    SnapshotSearchParams,
+    SnapshotSearchReport,
+    SnapshotSearchResult,
+    run_snapshot_operation,
+)
 from pylizlib.qt.handler.operation_core import Operation, Task
 from pylizlib.qt.handler.operation_domain import OperationInfo, OperationStatus
 from pylizlib.qt.handler.operation_runner import OperationRunner, RunnerStatistics
 
 from snappy.application.app import AppSettings, app_settings
 from snappy.application.i18n import tr
+from snappy.model.operation import operation_status
 
 
 RESULT_FILE_PATH_ROLE = Qt.ItemDataRole.UserRole + 1
@@ -214,13 +226,26 @@ class SnapSearchTask(Task):
         Returns:
             SnapshotSearchReport: Results and whether the search exceeded limits or was cancelled.
         """
-        def on_progress(file_name: str, total_files: int, current_file: int):
-            self.task_update_message.emit(self.name, tr("Scan: {file_name}", file_name=file_name))
-            if total_files > 0:
-                self.gen_update_task_progress(current_file, total_files)
-            return not getattr(self, "is_cancelled", False)
+        def on_progress(_file_name: str, _total_files: int, _current_file: int) -> bool:
+            return not self.is_cancelled
 
-        return self.searcher.search_with_report(self.snapshot, self.params, on_progress=on_progress)
+        def on_update(update: SnapshotOperationUpdate):
+            message = operation_status(update)
+            if update.detail:
+                message = f"{message} {update.detail}"
+            self.task_update_message.emit(self.name, message)
+            if update.progress is not None:
+                self.update_task_progress(update.progress)
+
+        try:
+            return run_snapshot_operation(
+                lambda: self.searcher.search_with_report(self.snapshot, self.params, on_progress=on_progress),
+                on_update=on_update,
+                is_cancelled=lambda: self.is_cancelled,
+            )
+        except SnapshotOperationCancelled:
+            self.cancel()
+            return SnapshotSearchReport([], cancelled=True)
 
 
 class SearchResultsTreeModel:

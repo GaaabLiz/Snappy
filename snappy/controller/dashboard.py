@@ -1,5 +1,6 @@
 from PySide6.QtCore import Qt
 from loguru import logger
+from pylizlib.core.os.snap import SnapshotOperationPhase, SnapshotOperationUpdate
 from pylizlib.qt.domain.view import UiWidgetMode
 from pylizlib.qtfw.util.ui import UiUtils
 from qfluentwidgets import FluentIcon, InfoBar, InfoBarPosition, NavigationItemPosition
@@ -15,6 +16,7 @@ from snappy.controller.home import HomeController
 from snappy.controller.setting import SettingController
 from snappy.domain.data import SnappyData, SnappySnapshotData
 from snappy.model.dashboard import DashboardModel
+from snappy.model.operation import operation_status
 from snappy.view.dashboard import DashboardView
 
 
@@ -46,6 +48,10 @@ class DashboardController:
         self.help = HelpController()
         self.catalogue = CatalogueController(self.model, self.__open_search_page)
         self.settings = SettingController(self.model)
+        self._operation_views = (
+            self.home.view, self.catalogue.view, self.searcher.view,
+            self.history.view, self.backup.view, self.help.view,
+        )
 
         self.view.addSubInterface(self.home.view, FluentIcon.HOME, self.home.view.window_name, NavigationItemPosition.TOP)
         self.view.addSubInterface(self.catalogue.view, FluentIcon.BOOK_SHELF, self.catalogue.view.window_name, NavigationItemPosition.TOP)
@@ -101,12 +107,8 @@ class DashboardController:
 
         Sets all child views to an 'UPDATING' state to display progress indicators.
         """
-        self.home.view.set_state(UiWidgetMode.UPDATING)
-        self.catalogue.view.set_state(UiWidgetMode.UPDATING)
-        self.searcher.view.set_state(UiWidgetMode.UPDATING)
-        self.history.view.set_state(UiWidgetMode.UPDATING)
-        self.backup.view.set_state(UiWidgetMode.UPDATING)
-        self.help.view.set_state(UiWidgetMode.UPDATING)
+        for view in self._operation_views:
+            view.set_state(UiWidgetMode.UPDATING)
 
     def __handle_update_complete(self):
         """
@@ -114,12 +116,8 @@ class DashboardController:
 
         Restores all child views to a 'DISPLAYING' state.
         """
-        self.home.view.set_state(UiWidgetMode.DISPLAYING)
-        self.catalogue.view.set_state(UiWidgetMode.DISPLAYING)
-        self.searcher.view.set_state(UiWidgetMode.DISPLAYING)
-        self.history.view.set_state(UiWidgetMode.DISPLAYING)
-        self.backup.view.set_state(UiWidgetMode.DISPLAYING)
-        self.help.view.set_state(UiWidgetMode.DISPLAYING)
+        for view in self._operation_views:
+            view.set_state(UiWidgetMode.DISPLAYING)
 
     def __open_search_page(self, snapshot=None):
         """
@@ -163,22 +161,29 @@ class DashboardController:
         self.model.signal_on_update_progress.connect(self.__handle_update_progress)
         self.model.signal_on_update_text.connect(self.__handle_update_text)
         self.model.signal_on_update_detail_text.connect(self.__handle_update_detail_text)
+        self.model.signal_on_operation_update.connect(self.__handle_operation_update)
+        for view in self._operation_views:
+            view.update_cancel_requested.connect(self.model.cancel_catalogue_wait)
         self.model.signal_on_heavy_operation_success.connect(UiUtils.show_message)
         self.model.signal_on_heavy_operation_error.connect(UiUtils.show_message)
         
-    def __handle_update_progress(self, progress: int):
+    def __handle_operation_update(self, update: SnapshotOperationUpdate):
+        """Display the current operation phase and let the user cancel a pending request."""
+        self.__handle_update_text(operation_status(update))
+        self.__handle_update_detail_text(update.detail)
+        self.__handle_update_progress(update.progress)
+        for view in self._operation_views:
+            view.set_wait_cancel_enabled(update.phase == SnapshotOperationPhase.WAITING_FOR_CATALOGUE)
+
+    def __handle_update_progress(self, progress: int | None):
         """
         Propagates the progress value of an ongoing heavy operation to all child views.
 
         Args:
-            progress (int): The current progress percentage (0-100).
+            progress (int | None): Percentage within the current phase when known.
         """
-        self.home.view.set_updating_progress(progress)
-        self.catalogue.view.set_updating_progress(progress)
-        self.searcher.view.set_updating_progress(progress)
-        self.history.view.set_updating_progress(progress)
-        self.backup.view.set_updating_progress(progress)
-        self.help.view.set_updating_progress(progress)
+        for view in self._operation_views:
+            view.set_updating_progress(progress)
 
     def __handle_update_text(self, text: str):
         """
@@ -187,12 +192,8 @@ class DashboardController:
         Args:
             text (str): The primary status message.
         """
-        self.home.view.set_updating_text(text)
-        self.catalogue.view.set_updating_text(text)
-        self.searcher.view.set_updating_text(text)
-        self.history.view.set_updating_text(text)
-        self.backup.view.set_updating_text(text)
-        self.help.view.set_updating_text(text)
+        for view in self._operation_views:
+            view.set_updating_text(text)
         
     def __handle_update_detail_text(self, text: str):
         """
@@ -201,12 +202,8 @@ class DashboardController:
         Args:
             text (str): The secondary, detailed status message.
         """
-        self.home.view.set_updating_detail_text(text)
-        self.catalogue.view.set_updating_detail_text(text)
-        self.searcher.view.set_updating_detail_text(text)
-        self.history.view.set_updating_detail_text(text)
-        self.backup.view.set_updating_detail_text(text)
-        self.help.view.set_updating_detail_text(text)
+        for view in self._operation_views:
+            view.set_updating_detail_text(text)
 
     def start(self):
         """

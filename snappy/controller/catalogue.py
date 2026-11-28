@@ -4,8 +4,7 @@ from PySide6.QtWidgets import QFileDialog, QInputDialog
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtCore import QUrl
 from loguru import logger
-from pylizlib.core.os.snap import Snapshot, SnapshotBusyError, SnapshotUpdateResult
-from pylizlib.core.os.snap.storage.coordination import catalogue_access
+from pylizlib.core.os.snap import Snapshot, SnapshotUpdateResult
 from pylizlib.core.os.system import get_system_username
 from pylizlib.qtfw.util.ui import UiUtils
 from qfluentwidgets import MessageBox
@@ -103,28 +102,10 @@ class CatalogueController:
             if value != original.data.get(key, "")
         }
         directories = form["directories"] if form["directories_changed"] else None
-        conflict = tr("This snapshot changed in another instance. Reopen it and try again.")
-
-        with catalogue_access(catalogue.path_catalogue):
-            current = catalogue.get_by_id(original.id)
-            if current is None:
-                raise ValueError(conflict)
-            if any(getattr(current, key) not in (getattr(original, key), value) for key, value in fields.items()):
-                raise ValueError(conflict)
-            if tags is not None and set(current.tags) not in (set(original.tags), set(tags)):
-                raise ValueError(conflict)
-            if any(current.data.get(key) not in (original.data.get(key), value) for key, value in custom.items()):
-                raise ValueError(conflict)
-            if directories is not None:
-                previous_paths = [(item.folder_id, item.original_path) for item in original.directories]
-                current_paths = [(item.folder_id, item.original_path) for item in current.directories]
-                if current_paths != previous_paths:
-                    raise ValueError(conflict)
-
-            return catalogue.update_snapshot_with_result(
-                original.id, **fields, tags=tags, directory_paths=directories,
-                data_updates=custom or None, message_callback=message_callback,
-            )
+        return catalogue.update_snapshot_with_result(
+            original.id, **fields, tags=tags, directory_paths=directories,
+            data_updates=custom or None, message_callback=message_callback, expected_snapshot=original,
+        )
 
     def __open_config_dialog(self, edit_mode: bool, snap: Snapshot | None = None):
         """
@@ -209,8 +190,8 @@ class CatalogueController:
             if kind == single:
                 catalogue.import_snapshot(archive)
                 count = 1
-            elif import_with_report := getattr(catalogue, "import_catalogue_with_report", None):
-                report = import_with_report(archive)
+            else:
+                report = catalogue.import_catalogue_with_report(archive)
                 count = len(report.imported)
                 message = tr(
                     "Imported: {imported}. Already present: {skipped}. Failed: {failed}.",
@@ -222,14 +203,6 @@ class CatalogueController:
                     message += "\n\n" + tr("First failure in {entry}: {error}", entry=first_entry, error=first_error)
                     if len(report.failed) > 1:
                         message += "\n" + tr("See the log for the other failures.")
-            else:
-                # The published 1.0.4 API does not return individual outcomes.
-                with catalogue_access(catalogue.path_catalogue):
-                    existing = {snapshot.id for snapshot in catalogue.get_all()}
-                    catalogue.import_catalogue(archive)
-                    count = sum(snapshot.id not in existing for snapshot in catalogue.get_all())
-                title = tr("Archive processed")
-                message = tr("Imported {count} new snapshots. See the log for skipped entries and errors.", count=count)
             if count:
                 log_action(ActionCategory.CATALOGUE, ActionType.CATALOGUE_SNAPSHOTS_IMPORTED, f"{archive.name} ({count})")
             return title, message
@@ -260,22 +233,17 @@ class CatalogueController:
             self.search_page_opener(snapshot)
 
     def __install_snapshot(self, snap: Snapshot):
-        """Confirm the persisted destinations and the current installation mode."""
+        """Read the current destinations in the worker before confirming the installation."""
         logger.debug(f"Installation requested for {snap.name}")
-        try:
-            catalogue = self.dash_model.snap_catalogue
-            confirmed = get_installation_plan(catalogue, snap.id)
+        catalogue = self.dash_model.snap_catalogue
+
+        def confirm(confirmed):
             dialog = InstallSnapshotDialog(confirmed.paths, confirmed.clear_destination, parent=self.view)
             if not dialog.exec():
                 return
 
-            def action(task):
-                result = install_confirmed_snapshot(
-                    catalogue,
-                    confirmed,
-                    progress_callback=task.update_task_progress,
-                    message_callback=task.update_task_message,
-                )
+            def action():
+                result = install_confirmed_snapshot(catalogue, confirmed)
                 logger.info(f"Configuration installation {snap.name} completed.")
                 self.__log_automatic_backup(snap, result.backup_path, "install")
                 log_action(ActionCategory.CATALOGUE, ActionType.CATALOGUE_SNAPSHOT_INSTALLED, snap.name)
@@ -286,10 +254,17 @@ class CatalogueController:
                 action,
                 success_msg_title=tr("Configuration installed"),
                 success_msg=tr("The configuration has been installed successfully."),
-                update_dashboard=True,
+                error_msg_title=tr("Installation error"),
             )
-        except Exception as error:
-            UiUtils.show_message(tr("Installation error"), str(error), self.view)
+
+        self.dash_model.run_heavy_operation(
+            tr("Install configuration"),
+            tr("Checking associated folders..."),
+            lambda: get_installation_plan(catalogue, snap.id),
+            on_result=confirm,
+            update_dashboard=False,
+            error_msg_title=tr("Installation error"),
+        )
 
     def __edit_snapshot(self, snap: Snapshot):
         """
@@ -332,23 +307,22 @@ class CatalogueController:
             logger.error(f"Error during delete process: {e}")
 
     def __open_snap_directory(self, snap: Snapshot):
-        """
-        Opens the file system directory corresponding to a given snapshot.
+        """Locate the published snapshot directory in the worker before opening it."""
+        def open_folder(path):
+            if path is None:
+                UiUtils.show_message(tr("Warning"), tr("This snapshot is no longer in the catalogue."), self.view)
+                self.dash_model.update()
+            else:
+                self.__open_directory(path)
 
-        Args:
-            snap (Snapshot): The snapshot whose directory will be opened.
-        """
-        try:
-            path = self.dash_model.snap_catalogue.get_snap_directory_path(snap)
-        except (OSError, SnapshotBusyError) as error:
-            logger.warning("Cannot locate the snapshot folder: {}", error)
-            UiUtils.show_message(tr("Warning"), str(error), self.view)
-            return
-        if path is None:
-            UiUtils.show_message(tr("Warning"), tr("This snapshot is no longer in the catalogue."), self.view)
-            self.dash_model.update()
-            return
-        self.__open_directory(path)
+        self.dash_model.run_heavy_operation(
+            tr("Open folder"),
+            tr("Reading the catalogue..."),
+            lambda: self.dash_model.snap_catalogue.get_snap_directory_path(snap),
+            on_result=open_folder,
+            update_dashboard=False,
+            error_msg_title=tr("Warning"),
+        )
 
     def __duplicate_snapshot(self, snap: Snapshot):
         """
@@ -450,10 +424,10 @@ class CatalogueController:
     def __delete_snap_installed_dirs(self, snap: Snapshot):
         """Confirm and remove the local folders at the selected snapshot's associated paths."""
         logger.debug(f"Installed folders deletion requested for {snap.name}")
-        try:
-            catalogue = self.dash_model.snap_catalogue
-            catalogue_path = catalogue.path_catalogue
-            paths = get_associated_folders_to_delete(catalogue, snap.id)
+        catalogue = self.dash_model.snap_catalogue
+        catalogue_path = catalogue.path_catalogue
+
+        def confirm(paths):
             if not paths:
                 UiUtils.show_message(
                     tr("Delete installed folders"),
@@ -461,61 +435,67 @@ class CatalogueController:
                     self.view,
                 )
                 return
-
-            confirmed_paths = frozenset(paths)
             dialog = DeleteAssociatedFoldersDialog(paths, parent=self.view)
-            if dialog.exec():
-                def action(task):
-                    backup = delete_associated_folders(
-                        catalogue,
-                        snap.id,
-                        expected_catalogue_path=catalogue_path,
-                        expected_paths=confirmed_paths,
-                        message_callback=task.update_task_message,
-                    )
-                    if backup is not None:
-                        logger.info(f"Installed folders deletion for {snap.name} completed.")
-                        self.__log_automatic_backup(snap, backup, "remove installed folders")
-                        log_action(ActionCategory.CATALOGUE, ActionType.CATALOGUE_INSTALLED_FOLDERS_DELETED, snap.name)
-                
-                self.dash_model.run_heavy_operation(
-                    tr("Delete installed folders"),
-                    tr("Deleting folders"),
-                    action,
-                    success_msg_title="", success_msg="", update_dashboard=True
+            if not dialog.exec():
+                return
+            confirmed_paths = frozenset(paths)
+
+            def action():
+                backup = delete_associated_folders(
+                    catalogue, snap.id, expected_catalogue_path=catalogue_path, expected_paths=confirmed_paths,
                 )
-        except Exception as e:
-            UiUtils.show_message(tr("Deletion error"), tr("An error occurred during deletion: {error}", error=str(e)), self.view)
+                if backup is not None:
+                    logger.info(f"Installed folders deletion for {snap.name} completed.")
+                    self.__log_automatic_backup(snap, backup, "remove installed folders")
+                    log_action(ActionCategory.CATALOGUE, ActionType.CATALOGUE_INSTALLED_FOLDERS_DELETED, snap.name)
+
+            self.dash_model.run_heavy_operation(
+                tr("Delete installed folders"),
+                tr("Deleting folders"),
+                action,
+                error_msg_title=tr("Deletion error"),
+            )
+
+        self.dash_model.run_heavy_operation(
+            tr("Delete installed folders"),
+            tr("Checking associated folders..."),
+            lambda: get_associated_folders_to_delete(catalogue, snap.id),
+            on_result=confirm,
+            update_dashboard=False,
+            error_msg_title=tr("Deletion error"),
+        )
 
     def __update_assoc_dirs_from_installed(self, snap: Snapshot):
-        """
-        Updates the snapshot's internal directories with the contents currently installed on the system.
-
-        Args:
-            snap (Snapshot): The snapshot to update.
-        """
+        """Show the impact of copying live files into the snapshot before updating it."""
         logger.debug(f"Associated folders update requested for {snap.name}")
-        try:
-            catalogue = self.dash_model.snap_catalogue
-            plan = catalogue.get_sync_plan(snap.id)
+        catalogue = self.dash_model.snap_catalogue
+
+        def confirm(plan):
             dialog = UpdateSnapshotDialog(plan.paths, plan.emptying_paths, parent=self.view)
-            if dialog.exec():
-                def action(task):
-                    result = catalogue.sync_with_result(
-                        snap.id, expected_plan=plan, message_callback=task.update_task_message,
-                    )
-                    logger.info(f"Associated folders update for {snap.name} completed.")
-                    self.__log_automatic_backup(snap, result.backup_path, "update with local")
-                    log_action(ActionCategory.CATALOGUE, ActionType.CATALOGUE_ASSOCIATED_FOLDERS_UPDATED, snap.name)
-                
-                self.dash_model.run_heavy_operation(
-                    tr("Update associated folders"),
-                    tr("Updating folders"),
-                    action,
-                    success_msg_title="", success_msg="", update_dashboard=True
-                )
-        except Exception as e:
-            UiUtils.show_message(tr("Update error"), tr("An error occurred during update: {error}", error=str(e)))
+            if not dialog.exec():
+                return
+
+            def action():
+                result = catalogue.sync_with_result(snap.id, expected_plan=plan)
+                logger.info(f"Associated folders update for {snap.name} completed.")
+                self.__log_automatic_backup(snap, result.backup_path, "update with local")
+                log_action(ActionCategory.CATALOGUE, ActionType.CATALOGUE_ASSOCIATED_FOLDERS_UPDATED, snap.name)
+
+            self.dash_model.run_heavy_operation(
+                tr("Update associated folders"),
+                tr("Updating folders"),
+                action,
+                error_msg_title=tr("Update error"),
+            )
+
+        self.dash_model.run_heavy_operation(
+            tr("Update associated folders"),
+            tr("Checking associated folders..."),
+            lambda: catalogue.get_sync_plan(snap.id),
+            on_result=confirm,
+            update_dashboard=False,
+            error_msg_title=tr("Update error"),
+        )
 
     def __open_catalogue_directory(self):
         """

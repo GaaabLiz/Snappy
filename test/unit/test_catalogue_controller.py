@@ -1,6 +1,6 @@
+import inspect
 import sys
 import types
-from datetime import timedelta
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -171,7 +171,8 @@ def test_catalogue_controller(monkeypatch, tmp_path):
             self.get_by_id = Mock()
             self.create_snapshot = Mock(return_value=FakeSnapshot("d1", "D1"))
             self.import_snapshot = Mock()
-            self.import_catalogue = Mock()
+            self.import_catalogue_with_report = Mock(return_value=types.SimpleNamespace(imported=["s2"], skipped=[], failed={}))
+            self.get_installation_plan = Mock()
             self.update_snapshot_with_result = Mock(return_value=types.SimpleNamespace(
                 snapshot=FakeSnapshot("s1", "Edited"), backup_path=Path("/backups/edit.zip"),
             ))
@@ -189,10 +190,21 @@ def test_catalogue_controller(monkeypatch, tmp_path):
             self.cached_data = None
             self.snap_catalogue = FakeCat()
             self.result_messages = []
-        def run_heavy_operation(self, n, d, func, success_msg_title="", success_msg="", update_dashboard=True, *, show_result_message=False):
-            result = func(task)
+        def run_heavy_operation(
+            self, n, d, func, success_msg_title="", success_msg="", update_dashboard=True, *,
+            show_result_message=False, on_result=None, error_msg_title="",
+        ):
+            try:
+                result = func(task) if inspect.signature(func).parameters else func()
+            except Exception as error:
+                if not error_msg_title:
+                    raise
+                msgs.append(str(error))
+                return
             if show_result_message:
                 self.result_messages.append(result)
+            if on_result is not None:
+                on_result(result)
     dash_mod.DashboardModel = FakeDash
     monkeypatch.setitem(sys.modules, "snappy.model.dashboard", dash_mod)
 
@@ -232,11 +244,10 @@ def test_catalogue_controller(monkeypatch, tmp_path):
     assert actions[-1][1:] == (ActionType.CATALOGUE_SNAPSHOTS_IMPORTED, "example.zip (1)")
     assert ctrl.dash_model.result_messages[-1][0] == "Import complete"
     FakeQInputDialog.source_index = 1
-    catalogue.get_all.side_effect = [[snap], [snap, FakeSnapshot("s2", "Imported")]]
     ctrl.view.signal_import_requested.emit()
-    catalogue.import_catalogue.assert_called_once_with(Path(FakeQFileDialog.zip_file))
+    catalogue.import_catalogue_with_report.assert_called_once_with(Path(FakeQFileDialog.zip_file))
     assert actions[-1][1:] == (ActionType.CATALOGUE_SNAPSHOTS_IMPORTED, "example.zip (1)")
-    assert ctrl.dash_model.result_messages[-1][0] == "Archive processed"
+    assert ctrl.dash_model.result_messages[-1][0] == "Import complete"
 
     catalogue.import_catalogue_with_report = Mock(return_value=types.SimpleNamespace(
         imported=["s2"], skipped=["s1"], failed={"s3": "Missing capture."},
@@ -258,26 +269,16 @@ def test_catalogue_controller(monkeypatch, tmp_path):
     ctrl.view.signal_edit_requested.emit(snap)
     catalogue.update_snapshot_with_result.assert_called_once_with(
         "s1", name="D1", desc="Description", tags=None, directory_paths=None,
-        data_updates={"visible": "value"}, message_callback=task.update_task_message,
+        data_updates={"visible": "value"}, message_callback=task.update_task_message, expected_snapshot=snap,
     )
     assert actions[-1][1:] == (ActionType.CATALOGUE_SNAPSHOT_UPDATED, "Edited")
 
     retained_form = dict(form_data)
-    externally_edited = snap.clone()
-    externally_edited.name = "Concurrent name"
-    externally_edited.data["visible"] = "concurrent value"
-    externally_edited.date_created += timedelta(seconds=1)  # Legacy JSON can omit this timestamp.
     form_data.update(name=snap.name, custom_data={"visible": "old", "unset": ""})
-    catalogue.get_by_id.return_value = externally_edited
     ctrl.view.signal_edit_requested.emit(snap)
     assert "name" not in catalogue.update_snapshot_with_result.call_args.kwargs
     assert catalogue.update_snapshot_with_result.call_args.kwargs["data_updates"] is None
-
-    form_data["name"] = "Different name"
-    edit_call_count = catalogue.update_snapshot_with_result.call_count
-    ctrl.view.signal_edit_requested.emit(snap)
-    assert catalogue.update_snapshot_with_result.call_count == edit_call_count
-    catalogue.get_by_id.return_value = snap
+    assert catalogue.update_snapshot_with_result.call_args.kwargs["expected_snapshot"] is snap
     form_data.update(retained_form)
 
     form_data["directories_changed"] = True
@@ -287,11 +288,14 @@ def test_catalogue_controller(monkeypatch, tmp_path):
     # __install_snapshot
     confirmed_target = tmp_path / "install target"
     snap.directories = [SnapDirAssociation(0, str(confirmed_target), "folder")]
+    plan = types.SimpleNamespace(paths=[confirmed_target], clear_destination=True, snapshot_id=snap.id)
+    catalogue.get_installation_plan.return_value = plan
     prior_actions = len(actions)
     ctrl.view.signal_install_requested.emit(snap)
+    catalogue.get_installation_plan.assert_called_once_with(snap.id, clear_destination=True)
     assert install_confirmations[-1] == ([confirmed_target], True)
     catalogue.install_with_result.assert_called_once_with(
-        snap, clear_destination=True, progress_callback=task.update_task_progress, message_callback=task.update_task_message,
+        snap.id, clear_destination=True, expected_plan=plan, progress_callback=None, message_callback=None,
     )
     assert [action[1] for action in actions[prior_actions:]] == [ActionType.CATALOGUE_SNAPSHOT_INSTALLED]
 
@@ -368,7 +372,7 @@ def test_catalogue_controller(monkeypatch, tmp_path):
     list_associated_folders.assert_called_once_with(catalogue, "s1")
     remove_associated_folders.assert_called_once_with(
         catalogue, "s1", expected_catalogue_path=catalogue.path_catalogue,
-        expected_paths=frozenset(folder_paths), message_callback=task.update_task_message,
+        expected_paths=frozenset(folder_paths),
     )
     assert actions[-1][1] == ActionType.CATALOGUE_INSTALLED_FOLDERS_DELETED
 
@@ -397,7 +401,7 @@ def test_catalogue_controller(monkeypatch, tmp_path):
 
     FakeMessageBox.res = True
     ctrl.view.signal_update_with_local_dirs_requested.emit(snap)
-    catalogue.sync_with_result.assert_called_once_with("s1", expected_plan=plan, message_callback=task.update_task_message)
+    catalogue.sync_with_result.assert_called_once_with("s1", expected_plan=plan)
     assert actions[-1][1] == ActionType.CATALOGUE_ASSOCIATED_FOLDERS_UPDATED
     automatic_backups = {
         (action_type, details)

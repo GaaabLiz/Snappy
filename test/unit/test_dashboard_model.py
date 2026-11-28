@@ -86,9 +86,23 @@ def _import_dashboard_model_module(monkeypatch):
         def __init__(self):
             super().__init__("monitored")
 
-    class FakeTaskGetSnapshots(FakeTask):
+    class FakeCatalogueTask(FakeTask):
+        def __init__(self, name, action, on_update):
+            super().__init__(name)
+            self.action = action
+            self.on_update = on_update
+            self.result = None
+            self.prepare()
+
+        def prepare(self):
+            self.cancellation_requested = False
+
+        def request_cancellation(self):
+            self.cancellation_requested = True
+
+    class FakeTaskGetSnapshots(FakeCatalogueTask):
         def __init__(self, catalogue):
-            super().__init__("snapshots")
+            super().__init__("snapshots", None, None)
             self.catalogue = catalogue
             self.backups = []
             self.home_statistics = None
@@ -104,6 +118,7 @@ def _import_dashboard_model_module(monkeypatch):
     fake_qtcore = types.ModuleType("PySide6.QtCore")
     fake_qtcore.QObject = FakeQObject
     fake_qtcore.Signal = FakeSignal
+    fake_qtcore.Slot = lambda *_args: lambda slot: slot
 
     fake_runner_module = types.ModuleType("pylizlib.qt.handler.operation_runner")
     fake_runner_module.OperationRunner = FakeOperationRunner
@@ -177,6 +192,10 @@ def _import_dashboard_model_module(monkeypatch):
     monkeypatch.setitem(sys.modules, "snappy.application.i18n", fake_i18n_module)
     monkeypatch.setitem(sys.modules, "pylizlib.qt.domain.view", fake_ui_mode_module)
     monkeypatch.setitem(sys.modules, "loguru", fake_logger_module)
+
+    fake_catalogue_task_module = types.ModuleType("snappy.model.operation")
+    fake_catalogue_task_module.CatalogueTask = FakeCatalogueTask
+    monkeypatch.setitem(sys.modules, "snappy.model.operation", fake_catalogue_task_module)
 
     sys.modules.pop("snappy.model.dashboard", None)
     import snappy.model.dashboard as dashboard_model_module
