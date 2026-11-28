@@ -71,9 +71,10 @@ def test_first_launch_creates_the_default_catalogue(monkeypatch, tmp_path):
     assert default.is_dir()
 
 
-@pytest.mark.parametrize("configured_path", ["", "  "])
-def test_blank_catalogue_path_does_not_accept_launch_directory(monkeypatch, tmp_path, configured_path):
+@pytest.mark.parametrize("configured_path", ["", "  ", "catalogue"])
+def test_non_absolute_catalogue_path_is_rejected(monkeypatch, tmp_path, configured_path):
     splash_module = _import_splash_module(monkeypatch)
+    (tmp_path / "catalogue").mkdir()
     monkeypatch.chdir(tmp_path)
     splash_module.app_settings.set("catalogue_path", configured_path)
 

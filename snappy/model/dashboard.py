@@ -40,12 +40,12 @@ class DashboardModel(QObject):
         super().__init__()
         self.cached_data: SnappyData | None = None
         self._catalogue_reload_pending = False
-        configured_path = app_settings.get(AppSettings.catalogue_path)
-        if not configured_path.strip():
-            raise ValueError("A catalogue path must be configured before opening the dashboard.")
+        catalogue_path = Path(app_settings.get(AppSettings.catalogue_path))
+        if not catalogue_path.is_absolute():
+            raise ValueError("An absolute catalogue path must be configured before opening the dashboard.")
 
         self.snap_catalogue = SnapshotCatalogue(
-            path_catalogue=Path(configured_path),
+            path_catalogue=catalogue_path,
             settings=snap_settings
         )
         self.task_monitored_soft = TaskGetMonitoredSoftware()

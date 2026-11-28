@@ -210,3 +210,13 @@ def test_backup_path_change_is_rolled_back_if_settings_cannot_be_saved(monkeypat
     assert snap_settings.backup_path == previous_path
     assert updates == []
     dashboard.update.assert_not_called()
+
+
+def test_catalogue_setting_rejects_relative_paths_and_keeps_offline_absolute_paths(tmp_path):
+    from snappy.application.app import AppSettings
+
+    validator = AppSettings.catalogue_path.validator
+    offline = tmp_path / "offline"
+    assert validator.correct("catalogue") == ""
+    assert validator.correct(offline) == str(offline)
+    assert not offline.exists()

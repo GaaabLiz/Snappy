@@ -8,6 +8,7 @@ from snappy.application import app
 _current_language = "en"
 
 _translations: dict[str, dict[str, str]] = {
+    "Choose an absolute catalogue path.": {"it": "Scegli un percorso assoluto per il catalogo."},
     "The backup path could not be saved: {error}": {"it": "Impossibile salvare il percorso dei backup: {error}"},
     "Invalid regular expression": {"it": "Espressione regolare non valida"},
     "Search error": {"it": "Errore di ricerca"},

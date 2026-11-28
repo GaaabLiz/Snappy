@@ -106,6 +106,17 @@ class NetworkFolderValidator(ConfigValidator):
         return str(value) if value else ""
 
 
+class CatalogueFolderValidator(NetworkFolderValidator):
+    """Keep only absolute catalogue paths without probing the filesystem."""
+
+    def validate(self, value):
+        return isinstance(value, str) and Path(value).is_absolute()
+
+    def correct(self, value):
+        path = super().correct(value)
+        return path if self.validate(path) else ""
+
+
 class BackupFolderValidator(NetworkFolderValidator):
     """Normalize a backup path without opening or creating the directory."""
 
@@ -125,7 +136,7 @@ class AppSettings(QConfig):
     favorites, backups, and general app settings.
     """
     config_tags = QtFwQConfigItem(True, SETTING_GROUP_CONFIGS, "Tag configurazioni", DEFAULT_SETTING_CONFIGURATION_TAGS, TextListValidator())
-    catalogue_path = QtFwQConfigItem(True, SETTING_GROUP_CONFIGS, "Catalogue Path", DEFAULT_SETTING_CATALOGUE_PATH, NetworkFolderValidator())
+    catalogue_path = QtFwQConfigItem(True, SETTING_GROUP_CONFIGS, "Catalogue Path", DEFAULT_SETTING_CATALOGUE_PATH, CatalogueFolderValidator())
     backup_before_install = QtFwQConfigItem(True, SETTING_GROUP_BACKUPS, "Backup Before Install", DEFAULT_SETTING_CONFIG_BACKUP_BEFORE_INSTALL, BoolValidator())
     backup_before_edit = QtFwQConfigItem(True, SETTING_GROUP_BACKUPS, "Backup Before Edit", DEFAULT_SETTING_CONFIG_BACKUP_BEFORE_EDIT, BoolValidator())
     backup_before_delete = QtFwQConfigItem(True, SETTING_GROUP_BACKUPS, "Backup Before Delete", DEFAULT_SETTING_CONFIG_BACKUP_BEFORE_DELETE, BoolValidator())
