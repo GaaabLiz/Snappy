@@ -5,6 +5,7 @@ from loguru import logger
 from pylizlib.core.os.snap.domain import BackupType
 
 from snappy.application.app import app_settings, AppSettings, snap_settings
+from snappy.application.i18n import tr
 from snappy.model.history import log_action, ActionCategory, ActionType
 
 
@@ -47,14 +48,17 @@ class SettingModel(QObject):
         """
         if self.dash_model.operation_active:
             return False
+        catalogue_path = Path(directory)
+        if not catalogue_path.is_absolute():
+            raise ValueError(tr("Choose an absolute catalogue path."))
+
         previous_setting_path = app_settings.get(AppSettings.catalogue_path)
         previous_backend_path = getattr(self.dash_model.snap_catalogue, "path_catalogue", previous_setting_path)
-        catalogue_path = Path(directory)
         self.dash_model.operation_active = True
         try:
             logger.info(f"Changing catalogue path to: {directory}")
             self.dash_model.snap_catalogue.set_catalogue_path(catalogue_path)
-            app_settings.set(AppSettings.catalogue_path, catalogue_path)
+            app_settings.set(AppSettings.catalogue_path, str(catalogue_path))
             if previous_backend_path != catalogue_path:
                 self.dash_model.invalidate_catalogue_data()
             log_action(ActionCategory.SETTINGS, ActionType.SETTINGS_CATALOGUE_PATH_CHANGED, directory)

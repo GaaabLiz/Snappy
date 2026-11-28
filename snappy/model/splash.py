@@ -19,11 +19,9 @@ class SplashModel:
         Returns:
             bool: True if the path exists and is a directory, False otherwise.
         """
-        configured_path = self.get_catalogue_path_str()
-        if not configured_path.strip():
+        catalogue_path = Path(self.get_catalogue_path_str())
+        if not catalogue_path.is_absolute():
             return False
-
-        catalogue_path = Path(configured_path)
         try:
             if catalogue_path == Path(DEFAULT_SETTING_CATALOGUE_PATH):
                 catalogue_path.mkdir(parents=True, exist_ok=True)
